@@ -1,0 +1,9 @@
+{
+    "applicationId": "jp.wamsoft.krkrz.sample",
+    "versionCode": 1,
+    "versionName": "1.0",
+    "compileSdk": 36,
+    "targetSdk": 36,
+    "minSdk": 29,
+    "ndkVersion": "28.2.13676358"
+}
