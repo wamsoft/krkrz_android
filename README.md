@@ -60,7 +60,125 @@ Android デバイスを接続した状態で実行します。
 ```bash
 ./gradlew assembleRelease
 ```
-※ リリースビルドを行うには、別途署名設定 (Signing Config) が必要になる場合があります。
+※ リリースビルドを行うには、以下の署名設定 (Signing Config) が必要です。
+
+## Release (Google Play 用署名)
+
+Google Play にアプリを公開するには、リリース用の署名が必要です。
+
+### 1. キーストアファイルの生成
+
+`keytool` コマンドでキーストアファイル（`.jks`）を生成します。
+
+```bash
+keytool -genkey -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias my-key-alias
+```
+
+| オプション | 説明 |
+|-----------|------|
+| `-keystore` | 生成するキーストアファイル名 |
+| `-keyalg` | 鍵アルゴリズム（RSA推奨） |
+| `-keysize` | 鍵サイズ（2048以上推奨） |
+| `-validity` | 有効日数（10000日 ≒ 27年） |
+| `-alias` | 鍵のエイリアス名 |
+
+コマンド実行時に以下の情報を入力します：
+- キーストアのパスワード
+- 姓名、組織名、都市、国コード など
+- 鍵のパスワード（キーストアと同じでも可）
+
+> **重要**: キーストアファイルとパスワードは紛失しないよう安全に保管してください。Google Play にアップロードしたアプリの更新には同じ鍵が必要です。
+
+### 2. 署名情報の設定
+
+署名情報は `local.properties` に記載します。このファイルは既に `.gitignore` に含まれているため、機密情報が Git にコミットされる心配がありません。
+
+`app/build.gradle` には `local.properties` を読み込んで署名設定に使用するコードが既に含まれています。以下のプロパティを `local.properties` に追記するだけで署名が有効になります。
+
+**local.properties に追記:**
+```properties
+# Release signing
+RELEASE_STORE_FILE=../release-key.jks
+RELEASE_STORE_PASSWORD=your_keystore_password
+RELEASE_KEY_ALIAS=my-key-alias
+RELEASE_KEY_PASSWORD=your_key_password
+```
+
+CI/CD 環境など `local.properties` が存在しない場合は、環境変数でも指定できます：
+```bash
+export RELEASE_STORE_FILE=../release-key.jks
+export RELEASE_STORE_PASSWORD=your_keystore_password
+export RELEASE_KEY_ALIAS=my-key-alias
+export RELEASE_KEY_PASSWORD=your_key_password
+```
+
+### 3. .gitignore への追加
+
+キーストアファイルをリポジトリにコミットしないよう `.gitignore` に以下を追加します。  
+（`local.properties` は既に `.gitignore` に含まれているため、署名情報は自動的に除外されます）
+
+```gitignore
+# Signing keys
+*.jks
+*.keystore
+```
+
+### 4. 署名済みリリースビルドの生成
+
+設定完了後、以下のコマンドで署名済み APK/AAB を生成できます。
+
+```bash
+# 署名済み APK
+./gradlew assembleRelease
+
+# Google Play 用 App Bundle (推奨)
+./gradlew bundleRelease
+```
+
+生成物の場所:
+- APK: `app/build/outputs/apk/release/app-release.apk`
+- AAB: `app/build/outputs/bundle/release/app-release.aab`
+
+### 5. 署名の検証
+
+生成された APK/AAB が正しく署名されているか確認できます。
+
+```bash
+# APK の署名確認
+apksigner verify --verbose app/build/outputs/apk/release/app-release.apk
+
+# AAB の署名確認 (bundletool 使用)
+jarsigner -verify -verbose app/build/outputs/bundle/release/app-release.aab
+```
+
+### Google Play App Signing について
+
+Google Play Console では「Play App Signing」を利用することを推奨しています。これを使用すると：
+
+- Google がアップロード鍵とは別の署名鍵でアプリに再署名
+- アップロード鍵を紛失しても Google に依頼して復旧可能
+- より安全な鍵管理が可能
+
+初回アップロード時に Play App Signing への登録を選択できます。
+
+### CI/CD での署名
+
+GitHub Actions などの CI/CD 環境では、秘密情報を Secrets として登録し、環境変数経由で渡します。
+
+**GitHub Actions の例:**
+```yaml
+env:
+  RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+  RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+  RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+```
+
+キーストアファイルは Base64 エンコードして Secret に保存し、ビルド時にデコードします。
+
+```yaml
+- name: Decode Keystore
+  run: echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > release-key.jks
+```
 
 ## 自前アプリへのカスタマイズ
 

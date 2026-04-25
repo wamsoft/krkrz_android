@@ -45,9 +45,25 @@ captures/
 .idea/navEditor.xml
 .idea/compiler.xml
 .idea/modules.xml
+.idea/deploymentTargetSelector.xml
+.idea/kotlinc.xml
+.idea/jarRepositories.xml
+.idea/appInsightsSettings.xml
+.idea/migrations.xml
+.idea/androidTestResultsUserPreferences.xml
+.idea/other.xml
+.idea/runConfigurations/
 *.iml
 *.ipr
 *.iws
+
+# Keystore (security)
+*.jks
+*.keystore
+!debug.keystore
+
+# Heap dumps
+*.hprof
 
 # NDK
 .externalNativeBuild

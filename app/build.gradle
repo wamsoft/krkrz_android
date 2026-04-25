@@ -7,11 +7,27 @@ plugins {
 def configFile = rootProject.file("app-config.json")
 def appConfig = new JsonSlurper().parse(configFile)
 
+// Load local.properties for signing config
+def localProps = new Properties()
+def localPropsFile = rootProject.file('local.properties')
+if (localPropsFile.exists()) {
+    localProps.load(localPropsFile.newDataInputStream())
+}
+
 android {
     namespace = 'jp.wamsoft.krkrz'
     compileSdk appConfig.compileSdk
 
     ndkVersion = appConfig.ndkVersion
+
+    signingConfigs {
+        release {
+            storeFile file(localProps['RELEASE_STORE_FILE'] ?: System.getenv('RELEASE_STORE_FILE') ?: 'release-key.jks')
+            storePassword localProps['RELEASE_STORE_PASSWORD'] ?: System.getenv('RELEASE_STORE_PASSWORD')
+            keyAlias localProps['RELEASE_KEY_ALIAS'] ?: System.getenv('RELEASE_KEY_ALIAS')
+            keyPassword localProps['RELEASE_KEY_PASSWORD'] ?: System.getenv('RELEASE_KEY_PASSWORD')
+        }
+    }
 
     defaultConfig {
         applicationId appConfig.applicationId
@@ -35,6 +51,7 @@ android {
 
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
