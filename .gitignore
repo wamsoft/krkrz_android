@@ -79,3 +79,6 @@ Thumbs.db
 
 .vscode/
 app/libs/*.aar
+
+# Claude Code local settings
+.claude/
