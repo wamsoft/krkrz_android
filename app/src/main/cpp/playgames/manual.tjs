@@ -1,0 +1,162 @@
+// PlayGames クラス (static)
+//
+// Google Play Games Services への TJS バインディング (Android専用)。
+// すべての非同期メソッドは引数の最初に function callback を受け取る。
+// callback シグネチャ:  function callback(result, error)
+//   - 成功時: result=値, error=void
+//   - 失敗時: result=void, error=ttstr (エラーメッセージ)
+// callback を void で渡せば fire-and-forget (一部メソッドのみ対応)
+//
+// 利用前に Play Games SDK 初期化 (KrkrzActivity.onCreate で自動) と、
+// res/values/strings.xml の games_app_id 設定が必要。
+
+class PlayGames {
+
+    // ---------------------------------------------------------
+    // 認証
+    // ---------------------------------------------------------
+
+    /**
+     * 現在 Play Games で認証済みか問い合わせる。
+     * @param cb function(authenticated, error) authenticated: bool
+     */
+    function isAuthenticated(cb);
+
+    /**
+     * インタラクティブ sign-in を起動する。Play Games SDK は v2 から自動で
+     * silent sign-in を試みるため、通常はまず isAuthenticated を呼んで false の
+     * ときだけ signIn を呼べばよい。
+     * @param cb function(authenticated, error) authenticated: bool
+     */
+    function signIn(cb);
+
+    /**
+     * 現在のプレイヤー情報を取得する。
+     * @param cb function(info, error) info: %[playerId, displayName, title]
+     */
+    function getCurrentPlayer(cb);
+
+    // ---------------------------------------------------------
+    // 実績 (Achievements)
+    // ---------------------------------------------------------
+
+    /**
+     * 実績一覧を取得する。
+     * @param cb function(list, error) list: 実績情報の配列
+     *   各要素は %[
+     *     achievementId,         実績ID
+     *     name,                  表示名
+     *     description,           説明
+     *     state,                 0=unlocked, 1=revealed, 2=hidden
+     *     type,                  0=standard, 1=incremental
+     *     xp,                    獲得XP
+     *     currentSteps,          (incremental時) 現在ステップ数
+     *     totalSteps,            (incremental時) 総ステップ数
+     *     unlockedTimestamp,     (unlocked時) 解除タイムスタンプ
+     *   ]
+     * @param forceReload (省略時 false) サーバーから強制リロード
+     */
+    function loadAchievements(cb, forceReload=false);
+
+    /**
+     * 実績を解除する。
+     * @param cb function(ok, error) cb=void で fire-and-forget (この場合即時送信もキューイング)
+     * @param achievementId Play Console で発行された実績ID
+     */
+    function unlockAchievement(cb, achievementId);
+
+    /**
+     * インクリメンタル実績の進捗を加算する。
+     * @param cb function(unlocked, error) unlocked: bool (これで解除されたか)
+     * @param achievementId 実績ID
+     * @param numSteps 加算ステップ数
+     */
+    function incrementAchievement(cb, achievementId, numSteps);
+
+    /**
+     * インクリメンタル実績のステップ数を絶対値で設定。
+     * @param cb function(unlocked, error)
+     */
+    function setStepsAchievement(cb, achievementId, numSteps);
+
+    /**
+     * 実績一覧UIを起動する。
+     * @param cb function(ok, error) UI起動成功で ok=true
+     */
+    function showAchievementsUI(cb);
+
+    // ---------------------------------------------------------
+    // セーブゲーム (Snapshots)
+    //
+    // Steam Cloud と異なり Snapshots は1スナップショット=1スロット (uniqueName)
+    // 競合解決は MOST_RECENTLY_MODIFIED 固定。
+    // ---------------------------------------------------------
+
+    /**
+     * スナップショット一覧を取得する。
+     * @param cb function(list, error) list: メタデータ配列
+     *   各要素は %[
+     *     uniqueName,                  スロット名
+     *     description,                 説明
+     *     deviceName,                  保存元デバイス名
+     *     lastModifiedTimestamp,       最終更新時刻 (msec)
+     *     playedTime,                  プレイ時間 (msec)
+     *     progressValue,               進捗値
+     *     coverImageAspectRatio,       カバー画像アスペクト比
+     *   ]
+     */
+    function listSnapshots(cb, forceReload=false);
+
+    /**
+     * スナップショットを読み込む。
+     * @param cb function(result, error) result: %[metadata: %[...], data: <octet>]
+     */
+    function readSnapshot(cb, uniqueName);
+
+    /**
+     * スナップショットへ書き込む。
+     * @param cb function(ok, error)
+     * @param uniqueName スロット名 (英数+一部記号、80文字以内)
+     * @param data 保存データ (octet または string)
+     * @param description (省略可) 説明文
+     * @param playedTimeMs (省略可、-1で無視) 累計プレイ時間 msec
+     * @param progressValue (省略可、-1で無視) 進捗値
+     */
+    function writeSnapshot(cb, uniqueName, data, description="", playedTimeMs=-1, progressValue=-1);
+
+    /**
+     * スナップショットを削除する。
+     */
+    function deleteSnapshot(cb, uniqueName);
+
+    /**
+     * セーブ選択UIを起動する。実際のセーブ選択結果は現状コールバックには返らないため、
+     * UIから戻った後に listSnapshots / readSnapshot を呼び直す運用とする。
+     * @param cb function(ok, error) UI起動成功で ok=true
+     * @param title UIのタイトル
+     * @param allowAddBtn (省略時 true) 新規追加ボタンを表示
+     * @param allowDeleteBtn (省略時 true) 削除ボタンを表示
+     * @param maxSnapshots (省略時 0) 表示最大件数 (0で無制限)
+     */
+    function showSnapshotsUI(cb, title, allowAddBtn=true, allowDeleteBtn=true, maxSnapshots=0);
+}
+
+// 利用例:
+//
+//   PlayGames.isAuthenticated(function(ok, err) {
+//     if (err !== void) { Debug.message("error: " + err); return; }
+//     if (!ok) {
+//       PlayGames.signIn(function(ok2, err2) {
+//         if (ok2) doStuff();
+//       });
+//     } else {
+//       doStuff();
+//     }
+//   });
+//
+//   function doStuff() {
+//     PlayGames.unlockAchievement(void, "CgkI...AchievementID");  // fire-and-forget
+//     PlayGames.writeSnapshot(function(ok, err) {
+//       Debug.message(ok ? "saved" : err);
+//     }, "slot01", "save data string", "Chapter 1 - Day 5");
+//   }

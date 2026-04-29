@@ -40,6 +40,15 @@
     android:theme="@style/Theme.Krkrz"
     android:hardwareAccelerated="true"
     tools:targetApi="35">
+
+    <!-- Google Play Games Services: Play Console で発行された App ID を strings.xml の games_app_id に設定する -->
+    <meta-data
+        android:name="com.google.android.gms.games.APP_ID"
+        android:value="@string/games_app_id" />
+    <meta-data
+        android:name="com.google.android.gms.version"
+        android:value="@integer/google_play_services_version" />
+
     <activity
         android:name="jp.wamsoft.krkrz.KrkrzActivity"
         android:exported="true"

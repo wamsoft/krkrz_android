@@ -83,6 +83,10 @@ android {
 dependencies {
     implementation libs.appcompat
     implementation libs.material
+    // Google Play Games Services (v2)
+    implementation 'com.google.android.gms:play-services-games-v2:20.1.2'
+    implementation 'com.google.android.gms:play-services-auth:21.2.0'
+    implementation 'com.google.android.gms:play-services-tasks:18.2.0'
     fileTree(dir: 'libs', include: ['*.aar']).each { file ->
         implementation files(file)
     }
