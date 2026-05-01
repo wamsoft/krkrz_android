@@ -88,6 +88,8 @@ set(SIMPLEBIND_DIR ${PLUGINS_DIR}/simplebinder)
 
 # 共通設定
 option(KRKRZ_ENABLE_DAP "enable VSCode Debug Adapter Protocol server" OFF)
+option(KRKRZ_USE_LOGCORE "enable LogCore" OFF)
+option(KRKRZ_REPL "enable interactive TJS REPL" OFF)
 option(KRKRZ_BUILD_TESTS "build SIMD parity tests" OFF)
 option(KRKRZ_USE_SJIS "use sjis encoding" YES)
 add_subdirectory(${KRKRZ_DIR} ${CMAKE_CURRENT_BINARY_DIR}/krkrz)
