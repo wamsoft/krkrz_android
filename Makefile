@@ -21,13 +21,15 @@ GRADLE_ASSEMBLE := :$(MODULE):assemble$(BUILD_TYPE)
 GRADLE_INSTALL  := :$(MODULE):install$(BUILD_TYPE)
 GRADLE_BUNDLE   := :$(MODULE):bundle$(BUILD_TYPE)
 
-.PHONY: help vars build assemble bundle install reinstall uninstall run debug stop logcat clean test connected devices check-adb check-appid
+.PHONY: help vars build assemble bundle install reinstall uninstall run debug stop logcat clean test connected devices check-adb check-appid release-debug install-release-debug
 
 help:
 	@echo "Android Makefile (gradlew wrapper)"
 	@echo "Targets:"
 	@echo "  make build           - Assemble $(BUILD_TYPE) (assemble$(BUILD_TYPE))"
 	@echo "  make install         - Install $(BUILD_TYPE) on device/emulator"
+	@echo "  make release-debug   - Assemble Release APK signed with debug key (assembleReleaseDebugSigned)"
+	@echo "  make install-release-debug - Install Release APK signed with debug key"
 	@echo "  make run             - Install and launch app (launcher activity)"
 	@echo "  make debug           - Install and launch with debugger wait (-D)"
 	@echo "  make uninstall       - Uninstall app via adb"
@@ -63,6 +65,13 @@ build assemble:
 
 bundle:
 	$(GRADLEW) $(GRADLE_BUNDLE)
+
+# Release APK signed with the debug key (no release keystore required)
+release-debug:
+	$(GRADLEW) :$(MODULE):assembleReleaseDebugSigned
+
+install-release-debug: check-adb
+	$(GRADLEW) :$(MODULE):installReleaseDebugSigned
 
 install: check-adb
 	$(GRADLEW) $(GRADLE_INSTALL)
