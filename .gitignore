@@ -35,6 +35,7 @@ proguard/
 captures/
 
 # IntelliJ IDEA / Android Studio
+.idea/.name
 .idea/workspace.xml
 .idea/tasks.xml
 .idea/gradle.xml
@@ -52,7 +53,11 @@ captures/
 .idea/migrations.xml
 .idea/androidTestResultsUserPreferences.xml
 .idea/other.xml
+.idea/runConfigurations.xml
 .idea/runConfigurations/
+.idea/misc.xml
+.idea/AndroidProjectSystem.xml
+.idea/vcs.xml
 *.iml
 *.ipr
 *.iws

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION="3.4.0"
+VERSION="3.4.4"
 ZIP_FILE="SDL3-devel-$VERSION-android.zip"
 URL="https://github.com/libsdl-org/SDL/releases/download/release-$VERSION/$ZIP_FILE"
 GROUP_ID="com.sdl"

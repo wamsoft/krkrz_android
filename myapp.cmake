@@ -7,12 +7,30 @@
 # app/src/main/cpp 配下にも Android 専用プラグイン (Java連携) を置く
 LIST(APPEND TVP_PLUGIN_FOLDERS
   ${CMAKE_CURRENT_LIST_DIR}/app/src/main/cpp
-)
+  ${KRKRZ_BASE}/wamsoft_work
+  ${KRKRZ_BASE}/krkrtemplate/plugins
+  )
 
 # プラグイン追加
 LIST(APPEND TVP_PLUGINS
   csvParser
   playgames
+  getSample
+  json
+  KAGParserEx
+  layerExBTOA
+  layerExImage
+  layerExRaster
+  saveStruct
+  scriptsEx
+  shrinkCopy
+# krkrtemplate
+  getLangName
+  textrender
+  tjsDataPack
+  tlgSliceLoader
+# wamsoft_work
+  psbfile
 )
 
 # 静的リンク (libkrkrz.so に組み込み)
