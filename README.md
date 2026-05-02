@@ -18,11 +18,11 @@ krkrz_dev （krkrz + plugin 共通プロジェクトフォルダ）がある場�
 吉里吉里本体             ${KRKRZ_BASE}/krkrz_dev/src/core
 吉里吉里プラグインソース ${KRKRZ_BASE}/krkrz_dev/src/plugins 
 
-トップフォルダ myapp.cmake で、同時リンクする
-対象プラグインを追加できます
-
-TVP_PLUGIN_FOLDERS  プラグインが存在するフォルダ名を追加
-TVP_PLUGINS         プラグイン名列挙
+同時リンクするプラグインの構成は `app-config.json` の `cmake` セクションで指定します
+(後述「CMake プラグイン構成 (cmake)」参照)。ビルド時にこの設定から
+`app/build/generated/cmake/myapp.cmake` が自動生成され、CMake から取り込まれます。
+生成物は `app/build/` 配下なのでクリーンビルドで自動的に消えます。
+直接編集せず JSON を編集してください。
 
 ### 1. ライブラリの配置
 
@@ -465,6 +465,51 @@ env:
 `manifestPlaceholders` を省略した場合は何も置換されないので、
 プレースホルダを使わない既定の Manifest はそのままビルドできます。
 
+### 1.2. CMake プラグイン構成 (cmake)
+
+KrkrZ プラグインの取り込み構成 (旧 `myapp.cmake` の内容) は `app-config.json` の
+`cmake` セクションで管理します。`preBuild` および CMake configure 前に
+`generateMyappCmake` タスクがこのセクションを読み、
+`app/build/generated/cmake/myapp.cmake` を自動生成し、
+CMake (`app/src/main/cpp/CMakeLists.txt`) から `include()` されます。
+
+```json
+"cmake": {
+    "pluginFolders": [
+        "app/src/main/cpp",
+        "${KRKRZ_BASE}/wamsoft_work",
+        "${KRKRZ_BASE}/krkrtemplate/plugins"
+    ],
+    "plugins": [
+        "csvParser",
+        "playgames",
+        "json",
+        "saveStruct"
+    ],
+    "staticPlugins": [
+        "playgames"
+    ]
+}
+```
+
+| キー | 内容 | 生成される CMake 変数 |
+|------|------|---------------------|
+| `pluginFolders` | プラグインを探すフォルダ。`app-config.json` 相対パス、絶対パス、`${ENV_VAR}` 環境変数展開が利用可能 | `TVP_PLUGIN_FOLDERS` |
+| `plugins` | リンクするプラグイン名の列挙 | `TVP_PLUGINS` |
+| `staticPlugins` | `libkrkrz.so` に静的に組み込むプラグイン名 | `TVP_PLUGINS_STATIC` |
+
+仕様:
+
+- **生成先は `app/build/generated/cmake/myapp.cmake`** で、`app/build/` 配下なので
+  既存の `.gitignore` (`build/`) で自動的にコミット対象外になります。
+  直接編集しても次回ビルドで上書きされるので、設定変更は必ず `app-config.json` 側で
+  行ってください。
+- 各パスは gradle 側で **絶対パスに解決** された状態で書き出されます。
+  CMake 側で `${CMAKE_CURRENT_LIST_DIR}` 等を意識する必要はありません。
+- `cmake` セクション自体を省略した場合、`generateMyappCmake` は何もしないので、
+  必要に応じて自分で `app/build/generated/cmake/myapp.cmake` を配置することも
+  可能です (ただし `clean` で消えるため恒常的な使い方には不向き)。
+
 ### 2. アプリ名の変更
 `app/src/main/res/values/strings.xml` を開き、`app_name` を変更してください。
 
@@ -600,7 +645,9 @@ public class MainActivity extends KrkrzActivity {
 - debug: デバッガ待機で起動 (`am start -D`)、後からアタッチ
 - stop: アプリの強制停止
 - logcat: `adb logcat` のフォロー
-- clean: クリーニング
+- clean: gradle clean (build/ 配下クリーン)
+- clean-cmake: CMake 生成物 (`.cxx/`、`build/intermediates/cxx`、`build/generated/cmake`) のみ削除。プラグイン構成変更後の再構成に
+- distclean: clean + clean-cmake。新規チェックアウト相当の状態に戻す (vcpkg 再 install、CMake 完全再 configure)
 - test/connected: ユニットテスト/計測テスト
 - devices: 接続デバイス一覧
 - vars: 変数の解決結果を表示

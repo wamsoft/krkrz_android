@@ -6,6 +6,34 @@
     "targetSdk": 36,
     "minSdk": 29,
     "ndkVersion": "28.2.13676358",
+    "cmake": {
+        "pluginFolders": [
+            "app/src/main/cpp",
+            "${KRKRZ_BASE}/wamsoft_work",
+            "${KRKRZ_BASE}/krkrtemplate/plugins"
+        ],
+        "plugins": [
+            "csvParser",
+            "playgames",
+            "getSample",
+            "json",
+            "KAGParserEx",
+            "layerExBTOA",
+            "layerExImage",
+            "layerExRaster",
+            "saveStruct",
+            "scriptsEx",
+            "shrinkCopy",
+            "getLangName",
+            "textrender",
+            "tjsDataPack",
+            "tlgSliceLoader",
+            "psbfile"
+        ],
+        "staticPlugins": [
+            "playgames"
+        ]
+    },
     "assetPack": {
         "projectFolder": "${KRKRZ_BASE}/krkrz_dev/src/core",
         "sources": [

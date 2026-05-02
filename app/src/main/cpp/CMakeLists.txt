@@ -31,7 +31,7 @@ project(krkrz_android)
 # 環境変数KRKRZ_BASE に krkrz用の各種ソースのベースパスを設定
 cmake_path(SET KRKRZ_BASE "$ENV{KRKRZ_BASE}")
 
-set(MYAPP_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../../../myapp.cmake")
+set(MYAPP_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/generated/cmake/myapp.cmake")
 if (EXISTS "${MYAPP_CMAKE_PATH}")
 	message(STATUS "Including myapp.cmake from ${MYAPP_CMAKE_PATH}")
 	include(${MYAPP_CMAKE_PATH})

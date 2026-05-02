@@ -21,7 +21,7 @@ GRADLE_ASSEMBLE := :$(MODULE):assemble$(BUILD_TYPE)
 GRADLE_INSTALL  := :$(MODULE):install$(BUILD_TYPE)
 GRADLE_BUNDLE   := :$(MODULE):bundle$(BUILD_TYPE)
 
-.PHONY: help vars build assemble bundle install reinstall uninstall run debug stop logcat clean test connected devices check-adb check-appid release-debug install-release-debug
+.PHONY: help vars build assemble bundle install reinstall uninstall run debug stop logcat clean clean-cmake distclean test connected devices check-adb check-appid release-debug install-release-debug
 
 help:
 	@echo "Android Makefile (gradlew wrapper)"
@@ -34,7 +34,9 @@ help:
 	@echo "  make debug           - Install and launch with debugger wait (-D)"
 	@echo "  make uninstall       - Uninstall app via adb"
 	@echo "  make logcat          - Tail adb logcat"
-	@echo "  make clean           - Clean build"
+	@echo "  make clean           - Clean build (gradle clean)"
+	@echo "  make clean-cmake     - Remove CMake artifacts (.cxx, intermediates/cxx, vcpkg installs)"
+	@echo "  make distclean       - clean + clean-cmake (full reset)"
 	@echo "  make test            - Run unit tests (test$(BUILD_TYPE)UnitTest)"
 	@echo "  make connected       - Run instrumentation tests (connected$(BUILD_TYPE)AndroidTest)"
 	@echo "  make devices         - List adb devices"
@@ -108,6 +110,21 @@ logcat: check-adb
 
 clean:
 	$(GRADLEW) clean
+
+# Remove CMake-generated artifacts (configure cache, build files, vcpkg installs).
+# Use this when CMake state goes weird (e.g. stale plugin paths after editing app-config.json
+# cmake section, vcpkg cache corruption, ABI/triplet mismatches, etc.). The next build will
+# fully reconfigure CMake (which means re-downloading vcpkg deps too — slower).
+clean-cmake:
+	@echo "Removing CMake artifacts..."
+	rm -rf app/.cxx
+	rm -rf app/build/intermediates/cxx
+	rm -rf app/build/intermediates/cmake
+	rm -rf app/build/generated/cmake
+
+# Full reset: gradle clean + CMake artifacts. Equivalent to a fresh checkout build.
+distclean: clean clean-cmake
+	@echo "Full clean done. Next build will re-run vcpkg install and CMake configure."
 
 test:
 	$(GRADLEW) :$(MODULE):test$(BUILD_TYPE)UnitTest

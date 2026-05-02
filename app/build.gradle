@@ -270,6 +270,74 @@ tasks.matching { it.name == 'preBuild' }.configureEach {
     dependsOn 'packAssets'
 }
 
+// --- generateMyappCmake: write generated myapp.cmake from app-config.json cmake section ---
+def myappCmakeFile = layout.buildDirectory.file('generated/cmake/myapp.cmake').get().asFile
+def cmakeConfig = appConfig.cmake
+
+tasks.register('generateMyappCmake') {
+    group = 'build'
+    description = 'Generate myapp.cmake from app-config.json cmake section'
+
+    if (cmakeConfig != null) {
+        inputs.property('cmakeConfig', cmakeConfig.toString())
+        outputs.file(myappCmakeFile)
+
+        doLast {
+            def normalizePath = { String p ->
+                def expanded = expandEnv(p)
+                def f = new File(expanded)
+                def abs = f.isAbsolute() ? f : rootProject.file(expanded)
+                return abs.absolutePath.replace('\\', '/')
+            }
+
+            def lines = []
+            lines << "# This file is auto-generated from app-config.json (cmake section)."
+            lines << "# DO NOT EDIT — your changes will be overwritten on the next build."
+            lines << ""
+
+            def folders = (cmakeConfig.pluginFolders ?: []) as List
+            if (!folders.isEmpty()) {
+                lines << "LIST(APPEND TVP_PLUGIN_FOLDERS"
+                folders.each { lines << "  ${normalizePath(it as String)}" }
+                lines << "  )"
+                lines << ""
+            }
+
+            def plugins = (cmakeConfig.plugins ?: []) as List
+            if (!plugins.isEmpty()) {
+                lines << "LIST(APPEND TVP_PLUGINS"
+                plugins.each { lines << "  ${it}" }
+                lines << "  )"
+                lines << ""
+            }
+
+            def staticPlugins = (cmakeConfig.staticPlugins ?: []) as List
+            if (!staticPlugins.isEmpty()) {
+                lines << "LIST(APPEND TVP_PLUGINS_STATIC"
+                staticPlugins.each { lines << "  ${it}" }
+                lines << "  )"
+                lines << ""
+            }
+
+            myappCmakeFile.parentFile.mkdirs()
+            myappCmakeFile.text = lines.join('\n')
+            logger.lifecycle("[generateMyappCmake] wrote ${myappCmakeFile}")
+        }
+    } else {
+        doLast {
+            logger.info("[generateMyappCmake] no 'cmake' section in app-config.json, skipping")
+        }
+    }
+}
+
+tasks.matching {
+    it.name == 'preBuild' ||
+            it.name.startsWith('configureCMake') ||
+            it.name.startsWith('externalNativeBuild')
+}.configureEach {
+    dependsOn 'generateMyappCmake'
+}
+
 dependencies {
     implementation libs.appcompat
     implementation libs.material
