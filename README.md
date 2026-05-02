@@ -95,6 +95,7 @@ APK に含めます。
 |------|------|------|
 | `projectFolder` | ◯ | コピー元のベースフォルダ。`app-config.json` からの相対パス、絶対パス、`${ENV_VAR}` 形式の環境変数展開が利用可能 |
 | `transfer` | 省略可 | 転送方式。`"copy"` (既定) または `"hardlink"` |
+| `resOverride` | 省略可 | `projectFolder` 配下のフォルダ名 (string) または配列。詳細は後述 |
 | `sources` | ◯ | コピー定義の配列。記載順に処理されます |
 | `sources[].type` | ◯ | `"mirror"` または `"flatten"` |
 | `sources[].from` | ◯ | `projectFolder` 相対のフォルダパス |
@@ -182,6 +183,49 @@ APK に含めます。
 - 差分更新ロジック上、ソースを **置き換え (古いファイルを消して新ファイル作成)**
   したケースのみ再リンク対象になります。インプレース編集はリンクが
   自動追従するので何もしません (それで意図通り)。
+
+### resOverride: アイコン・res の外部フォルダ上書き
+
+`projectFolder` 配下に Android `res/` 規約に従ったフォルダを置いておけば、
+`resOverride` でそれを `app/src/main/res/` の上に重ね、**個別ファイル単位 / values
+要素単位で上書き** できます。各 buildType の `res.srcDirs` に追加する形で実装
+されており、AGP のリソースマージ機構をそのまま使うので、独自タスクや事前コピーは
+不要です。
+
+```jsonc
+"assetPack": {
+    "projectFolder": "${KRKRZ_BASE}/myproject",
+    "resOverride": "android-res",
+    // 配列で複数のオーバーレイも指定可能 (後ろほど優先):
+    // "resOverride": ["base-res", "brand-res"],
+    "sources": [ ... ]
+}
+```
+
+外部フォルダ構造の例 (`<projectFolder>/android-res/` 配下):
+
+```
+android-res/
+├── mipmap-mdpi/ic_launcher.webp        # ← app/src/main/res の同名を上書き
+├── mipmap-hdpi/ic_launcher.webp
+├── mipmap-xhdpi/ic_launcher.webp
+├── mipmap-xxhdpi/ic_launcher.webp
+├── mipmap-xxxhdpi/ic_launcher.webp
+├── mipmap-anydpi-v26/ic_launcher.xml   # adaptive icon
+├── drawable/ic_launcher_foreground.xml
+└── values/strings.xml                  # <string name="app_name">..</string>
+                                        # など要素単位で上書き可能
+```
+
+仕様:
+
+- `resOverride` の値は `projectFolder` からの相対フォルダ名 (またはその配列)。
+- フォルダ構造は **Android `res/` 規約** (`mipmap-*`, `drawable*`, `values*` 等の
+  qualifier dir 構造) に従ってください。素の PNG をフラットに置く形には対応しません。
+- 全 buildType (debug / release / releaseDebugSigned) に同じオーバーレイが適用されます。
+- `values/strings.xml` のような `values` リソースは **要素単位でマージ** されるため、
+  `app_name` だけ書いたファイルを置けば他の string はそのまま残ります。
+- 配列で指定した場合、**後ろの要素ほど優先** (AGP の `srcDirs` の追加順に従う)。
 
 ## ビルドと実行 (Gradle)
 
@@ -388,6 +432,38 @@ env:
 * `ndkVersion`: 利用する NDK のバージョン
 
 ※ `app/build.gradle` はこの JSON ファイルを自動的に読み込みます。
+
+### 1.1. AndroidManifest の値を外部から差し替える (manifestPlaceholders)
+
+`AndroidManifest.xml` 内の `${KEY}` 形式のプレースホルダを、
+`app-config.json` の `manifestPlaceholders` で置換できます。
+画面向き、API キー、Deep Link のホスト名など、Manifest 直書きの単一値を
+**Manifest を直接編集せずに** アプリごとに切り替える用途に使えます。
+
+```json
+{
+    "applicationId": "com.example.mygame",
+    "manifestPlaceholders": {
+        "screenOrientation": "landscape",
+        "deepLinkHost": "example.com"
+    }
+}
+```
+
+`AndroidManifest.xml` 側でプレースホルダを書いておくと、ビルド時に置換されます:
+
+```xml
+<activity
+    android:name="..."
+    android:screenOrientation="${screenOrientation}" >
+    <intent-filter>
+        <data android:scheme="https" android:host="${deepLinkHost}" />
+    </intent-filter>
+</activity>
+```
+
+`manifestPlaceholders` を省略した場合は何も置換されないので、
+プレースホルダを使わない既定の Manifest はそのままビルドできます。
 
 ### 2. アプリ名の変更
 `app/src/main/res/values/strings.xml` を開き、`app_name` を変更してください。

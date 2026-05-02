@@ -37,6 +37,10 @@ android {
         versionCode appConfig.versionCode
         versionName appConfig.versionName
 
+        if (appConfig.manifestPlaceholders) {
+            manifestPlaceholders.putAll(appConfig.manifestPlaceholders.collectEntries { k, v -> [(k as String): (v as String)] })
+        }
+
         externalNativeBuild {
             cmake {
                 cppFlags "-std=c++17"
@@ -98,6 +102,26 @@ static def expandEnv(String s) {
     }
 }
 
+// Resolve projectFolder once (used by both packAssets and resOverride)
+def assetPackProjectFolder = null
+if (assetPackConfig?.projectFolder) {
+    def resolved = expandEnv(assetPackConfig.projectFolder as String)
+    def f = new File(resolved)
+    assetPackProjectFolder = f.isAbsolute() ? f : rootProject.file(resolved)
+}
+
+// resOverride: overlay external res folder(s) on top of main res via buildType source sets
+if (assetPackConfig?.resOverride && assetPackProjectFolder != null) {
+    def overlayNames = assetPackConfig.resOverride instanceof List
+            ? assetPackConfig.resOverride
+            : [assetPackConfig.resOverride]
+    def overlayDirs = overlayNames.collect { new File(assetPackProjectFolder, it as String) }
+    android.buildTypes.configureEach { bt ->
+        def ss = android.sourceSets.findByName(bt.name)
+        if (ss != null) ss.res.srcDirs(*overlayDirs)
+    }
+}
+
 tasks.register('packAssets') {
     group = 'build'
     description = 'Copy project files into generated assets directory based on app-config.json assetPack'
@@ -105,12 +129,7 @@ tasks.register('packAssets') {
     outputs.dir(assetPackOutputDir)
 
     if (assetPackConfig != null) {
-        def projectFolderRaw = assetPackConfig.projectFolder as String
-        def projectFolderResolved = expandEnv(projectFolderRaw)
-        def projectFolderRawFile = new File(projectFolderResolved)
-        def projectFolder = projectFolderRawFile.isAbsolute()
-                ? projectFolderRawFile
-                : rootProject.file(projectFolderResolved)
+        def projectFolder = assetPackProjectFolder
         def sources = (assetPackConfig.sources ?: []) as List
         def transferMode = (assetPackConfig.transfer ?: 'copy') as String
         if (transferMode != 'copy' && transferMode != 'hardlink') {
