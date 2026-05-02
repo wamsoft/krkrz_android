@@ -40,6 +40,149 @@ install-sdl-aar.sh で指定バージョンの SDLをダウンロードして配
 
 * **スクリプト・データ**: `app/src/main/assets/data/` 以下に配置するとその中の `startup.tjs`から起動します
 
+外部のプロジェクトフォルダから assets にコピーしたい場合は、後述の
+[assetPack によるアセット自動コピー](#assetpack-によるアセット自動コピー) を参照してください。
+
+## assetPack によるアセット自動コピー
+
+リポジトリ外にあるプロジェクト一式 (data フォルダや tjs スクリプト群)
+を、ビルド時に自動で `assets/` に取り込む仕組みです。
+`app-config.json` に `assetPack` セクションを追加すると、
+`packAssets` タスクが自動で `preBuild` 前に走り、指定したファイルを
+`app/build/generated/assetPack/` に書き出して `assets.srcDirs` 経由で
+APK に含めます。
+
+既存の `${KRKRZ_BASE}/krkrz_dev/src/core/resource` (KrkrZ 本体の必須資材)
+はそのまま残り、`assetPack` は **追加** で merge されます。
+
+### 設定例
+
+```json
+{
+    "applicationId": "jp.wamsoft.krkrz.sample",
+    "versionCode": 1,
+    "versionName": "1.0",
+    "compileSdk": 36,
+    "targetSdk": 36,
+    "minSdk": 29,
+    "ndkVersion": "28.2.13676358",
+    "assetPack": {
+        "projectFolder": "../myproject",
+        "sources": [
+            {
+                "type": "mirror",
+                "from": "data",
+                "include": ["**/*"],
+                "exclude": ["**/*.bak", "**/*.psd"]
+            },
+            {
+                "type": "mirror",
+                "from": "append"
+            },
+            {
+                "type": "flatten",
+                "from": "startup",
+                "include": ["*.tjs", "*.txt"]
+            }
+        ]
+    }
+}
+```
+
+### パラメータ
+
+| キー | 必須 | 内容 |
+|------|------|------|
+| `projectFolder` | ◯ | コピー元のベースフォルダ。`app-config.json` からの相対パス、絶対パス、`${ENV_VAR}` 形式の環境変数展開が利用可能 |
+| `transfer` | 省略可 | 転送方式。`"copy"` (既定) または `"hardlink"` |
+| `sources` | ◯ | コピー定義の配列。記載順に処理されます |
+| `sources[].type` | ◯ | `"mirror"` または `"flatten"` |
+| `sources[].from` | ◯ | `projectFolder` 相対のフォルダパス |
+| `sources[].include` | 省略可 | Ant パターンの配列 (例: `"**/*.png"`)。既定 `["**/*"]` |
+| `sources[].exclude` | 省略可 | Ant パターンの配列。既定 `[]` |
+| `sources[].to` | 省略可 | assets 配下の出力先パス。省略時は `mirror`=`from`、`flatten`=`""` (assets 直下) |
+
+### type の動作
+
+- **`mirror`**: `<projectFolder>/<from>/` 配下を Ant パターンでフィルタし、
+  ディレクトリ構造を維持したまま `assets/<to>/` 以下にコピーします。
+  例: `from: "data"` → `assets/data/...`
+- **`flatten`**: 同様にフィルタしますが、ヒットしたファイルを
+  サブディレクトリを捨てて `assets/<to>/` 直下にファイル名のみで
+  配置します。
+
+### 同名ファイルの衝突
+
+複数の source や `flatten` のサブディレクトリ間で同じ出力パスに
+書き込もうとした場合、**最初に現れたファイルが採用** され、
+後続のものは Gradle の警告ログ付きでスキップされます。
+
+```
+> Task :app:packAssets
+[assetPack] duplicate skipped (first wins): assets/foo/bar.txt
+            kept   : ../myproject/data/foo/bar.txt
+            skipped: ../myproject/append/foo/bar.txt
+[assetPack] packed 123 file(s) into .../app/build/generated/assetPack
+```
+
+### 単独でのタスク実行
+
+通常のビルド (`./gradlew assembleDebug` 等) では `preBuild` 経由で
+自動実行されますが、コピーだけ確認したい場合は以下で単独実行できます。
+
+```bash
+./gradlew :app:packAssets
+```
+
+入力ファイルが変わらない限り `UP-TO-DATE` でスキップされます。
+強制再実行したい場合は `--rerun-tasks` を付けてください。
+
+### 再実行時のふるまい (差分更新)
+
+`packAssets` は `Sync` ライクに差分のみ更新します。
+
+- **ソース側で削除されたファイル** は出力ディレクトリからも自動的に削除されます。
+- **内容に変更がないファイル** は再コピーされず、タイムスタンプもそのまま保持されます (後続の `mergeAssets` を不必要に走らせない)。
+- **追加・変更されたファイルだけ** がコピーされます。
+- 実行末尾に `N file(s) total: X copied, Y unchanged, Z removed` のサマリが出ます。
+
+### transfer モード: hardlink (大容量アセット向け)
+
+ソースとビルド出力先が **同じドライブ・同じファイルシステム上** にある場合、
+`transfer: "hardlink"` を指定するとコピーの代わりに **NTFS / ext4 等のハードリンク**
+を使ってファイル実体を共有します。数 GB のアセットでもディスクをほぼ消費せず、
+転送も実質ゼロ時間になります。
+
+```jsonc
+"assetPack": {
+    "projectFolder": "${KRKRZ_BASE}/myproject",
+    "transfer": "hardlink",
+    "sources": [ ... ]
+}
+```
+
+挙動:
+
+- ソース側でファイルを編集すると、ビルド出力側にも **即座に反映** されます
+  (同じ inode を共有しているため)。
+- `packAssets` の差分判定は引き続き mtime/size ベースなので、
+  ソースを **置き換え (delete & re-create)** した場合は次回ランで再リンクされます。
+- リンク作成に失敗したファイル (異ドライブ・ネットワーク FS・FAT 等
+  ハードリンク非対応の環境) は **自動的にコピーへフォールバック** します。
+  サマリに `X linked, Y copied (fallback)` と表示され、フォールバックが
+  発生した場合は警告ログも出ます。
+- Windows の NTFS では管理者権限不要で動作します。シンボリックリンクは
+  対応しません (Windows では昇格が必要なため)。
+
+注意:
+
+- ソースを別途編集する運用 (例: ビルド前にスクリプトでソースを書き換える等)
+  がある場合、出力側も同時に書き換わるため副作用に注意してください。
+  そういった運用がある場合は既定の `copy` を使うのが安全です。
+- 差分更新ロジック上、ソースを **置き換え (古いファイルを消して新ファイル作成)**
+  したケースのみ再リンク対象になります。インプレース編集はリンクが
+  自動追従するので何もしません (それで意図通り)。
+
 ## ビルドと実行 (Gradle)
 
 プロジェクトのルートディレクトリで以下のコマンドを実行してください。
@@ -139,7 +282,46 @@ export RELEASE_KEY_PASSWORD=your_key_password
 - APK: `app/build/outputs/apk/release/app-release.apk`
 - AAB: `app/build/outputs/bundle/release/app-release.aab`
 
-### 5. 署名の検証
+### 5. デバッグ署名でのリリースビルド (release-debug)
+
+リリースビルド (proguard / minify などのリリース設定が適用された状態) を、
+**release キーストアを用意せずに debug キーで署名** して動作確認したい場合のための
+ビルドタイプ `releaseDebugSigned` を用意しています。
+
+用途:
+- リリース構成での挙動・パフォーマンスを手元の端末で確認したい
+- まだ release キーストアを発行していない / CI に署名情報を渡せない段階でも、
+  リリース構成の APK を生成・インストールしたい
+- Play Console 用ではなく、社内配布や動作検証用の APK が欲しい
+
+`app/build.gradle` の `buildTypes.releaseDebugSigned` で release を `initWith` した上で
+`signingConfig` を `signingConfigs.debug` に差し替える構成になっています。
+`local.properties` の `RELEASE_*` 設定は不要です。
+
+```bash
+# Release 構成 + debug 署名で APK を生成
+make release-debug
+
+# 端末にインストール
+make install-release-debug
+```
+
+直接 Gradle を叩く場合:
+
+```bash
+./gradlew :app:assembleReleaseDebugSigned
+./gradlew :app:installReleaseDebugSigned
+```
+
+生成された APK は `app/build/outputs/apk/releaseDebugSigned/` に出力されます。
+
+> 注意: debug キーで署名されるため、**Google Play へはアップロードできません**。
+> あくまで動作検証専用です。Play 配布用には通常の `assembleRelease` / `bundleRelease`
+> (release キーストア署名) を使用してください。
+> また、Google Play Games Services を利用する場合は debug キーストアの SHA-1 も
+> Play Console 側に登録しておく必要があります (後述「Google Play Games Services プラグイン」参照)。
+
+### 6. 署名の検証
 
 生成された APK/AAB が正しく署名されているか確認できます。
 
@@ -336,6 +518,7 @@ public class MainActivity extends KrkrzActivity {
 主なターゲット
 - build/assemble: `assemble<BUILD_TYPE>` の実行 (既定: Debug)
 - bundle: `bundle<BUILD_TYPE>` の生成
+- release-debug / install-release-debug: Release 構成を debug 鍵で署名した APK の生成 / インストール (release キーストア不要、Play 配布不可)
 - install/reinstall/uninstall: 端末へのインストール/再インストール/アンインストール
 - run: ランチャーアクティビティを起動
 - debug: デバッガ待機で起動 (`am start -D`)、後からアタッチ

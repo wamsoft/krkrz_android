@@ -72,6 +72,7 @@ android {
     sourceSets {
         main {
             assets.srcDirs += ["${System.getenv('KRKRZ_BASE')}/krkrz_dev/src/core/resource"]
+            assets.srcDirs += [layout.buildDirectory.dir("generated/assetPack").get().asFile]
         }
     }
 
@@ -83,6 +84,171 @@ android {
     buildFeatures {
         prefab = true
     }
+}
+
+// --- assetPack: copy project files into generated assets directory ---
+def assetPackOutputDir = layout.buildDirectory.dir("generated/assetPack").get().asFile
+def assetPackConfig = appConfig.assetPack
+
+static def expandEnv(String s) {
+    if (s == null) return null
+    return s.replaceAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/) { match, var ->
+        def v = System.getenv(var)
+        return v != null ? v : ''
+    }
+}
+
+tasks.register('packAssets') {
+    group = 'build'
+    description = 'Copy project files into generated assets directory based on app-config.json assetPack'
+
+    outputs.dir(assetPackOutputDir)
+
+    if (assetPackConfig != null) {
+        def projectFolderRaw = assetPackConfig.projectFolder as String
+        def projectFolderResolved = expandEnv(projectFolderRaw)
+        def projectFolderRawFile = new File(projectFolderResolved)
+        def projectFolder = projectFolderRawFile.isAbsolute()
+                ? projectFolderRawFile
+                : rootProject.file(projectFolderResolved)
+        def sources = (assetPackConfig.sources ?: []) as List
+        def transferMode = (assetPackConfig.transfer ?: 'copy') as String
+        if (transferMode != 'copy' && transferMode != 'hardlink') {
+            throw new GradleException("[assetPack] unknown transfer '${transferMode}' (must be 'copy' or 'hardlink')")
+        }
+
+        // Declare inputs (so the task is UP-TO-DATE when nothing changes)
+        sources.each { src ->
+            def fromDir = new File(projectFolder, src.from as String)
+            if (fromDir.exists()) {
+                def includes = (src.include ?: ['**/*']) as List
+                def excludes = (src.exclude ?: []) as List
+                inputs.files(fileTree(dir: fromDir, includes: includes, excludes: excludes))
+                        .withPropertyName("assetPack-${src.type}-${src.from}")
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+            }
+        }
+        inputs.property('assetPackConfig', assetPackConfig.toString())
+
+        doLast {
+            assetPackOutputDir.mkdirs()
+
+            // 1. Build expected map (destRelPath -> sourceFile) from all sources
+            def expected = [:]
+
+            sources.each { src ->
+                def type = src.type as String
+                if (type != 'mirror' && type != 'flatten') {
+                    throw new GradleException("[assetPack] unknown type '${type}' (must be 'mirror' or 'flatten')")
+                }
+                if (!src.from) {
+                    throw new GradleException("[assetPack] 'from' is required")
+                }
+                def fromDir = new File(projectFolder, src.from as String)
+                def toPath = (src.to as String) ?: (type == 'mirror' ? (src.from as String) : '')
+                def includes = (src.include ?: ['**/*']) as List
+                def excludes = (src.exclude ?: []) as List
+
+                if (!fromDir.exists()) {
+                    logger.warn("[assetPack] source folder not found, skipped: ${fromDir}")
+                    return
+                }
+
+                fileTree(dir: fromDir, includes: includes, excludes: excludes).each { srcFile ->
+                    def destRel
+                    if (type == 'mirror') {
+                        def rel = fromDir.toPath().relativize(srcFile.toPath()).toString().replace('\\', '/')
+                        destRel = toPath ? "${toPath}/${rel}" : rel
+                    } else {
+                        destRel = toPath ? "${toPath}/${srcFile.name}" : srcFile.name
+                    }
+                    destRel = destRel.replaceAll(/^\/+/, '')
+
+                    if (expected.containsKey(destRel)) {
+                        logger.warn("[assetPack] duplicate skipped (first wins): assets/${destRel}")
+                        logger.warn("            kept   : ${expected[destRel]}")
+                        logger.warn("            skipped: ${srcFile}")
+                        return
+                    }
+                    expected[destRel] = srcFile
+                }
+            }
+
+            // 2. Remove stale files (no longer present in any source)
+            int removed = 0
+            if (assetPackOutputDir.exists()) {
+                assetPackOutputDir.eachFileRecurse(groovy.io.FileType.FILES) { existing ->
+                    def rel = assetPackOutputDir.toPath().relativize(existing.toPath()).toString().replace('\\', '/')
+                    if (!expected.containsKey(rel)) {
+                        existing.delete()
+                        removed++
+                    }
+                }
+                // Remove now-empty directories (bottom-up)
+                def dirs = []
+                assetPackOutputDir.eachFileRecurse(groovy.io.FileType.DIRECTORIES) { dirs << it }
+                dirs.sort { -it.absolutePath.length() }.each { d ->
+                    if (d.list().length == 0) d.delete()
+                }
+            }
+
+            // 3. Transfer new / changed files only (preserve timestamps so downstream tasks see no spurious diffs)
+            int linked = 0
+            int copied = 0
+            int unchanged = 0
+            int linkFailures = 0
+            expected.each { destRel, srcFile ->
+                def destFile = new File(assetPackOutputDir, destRel)
+                def needsTransfer = !destFile.exists() ||
+                        destFile.length() != srcFile.length() ||
+                        destFile.lastModified() != srcFile.lastModified()
+                if (!needsTransfer) {
+                    unchanged++
+                    return
+                }
+                if (destFile.exists()) destFile.delete()
+                destFile.parentFile.mkdirs()
+
+                boolean didLink = false
+                if (transferMode == 'hardlink') {
+                    try {
+                        java.nio.file.Files.createLink(destFile.toPath(), srcFile.toPath())
+                        didLink = true
+                    } catch (Exception e) {
+                        linkFailures++
+                        logger.info("[assetPack] hardlink failed for ${srcFile} -> copy fallback: ${e.message}")
+                    }
+                }
+                if (!didLink) {
+                    java.nio.file.Files.copy(
+                            srcFile.toPath(),
+                            destFile.toPath(),
+                            java.nio.file.StandardCopyOption.COPY_ATTRIBUTES)
+                    copied++
+                } else {
+                    linked++
+                }
+            }
+
+            def summary = transferMode == 'hardlink'
+                    ? "${linked} linked, ${copied} copied (fallback), ${unchanged} unchanged, ${removed} removed"
+                    : "${copied} copied, ${unchanged} unchanged, ${removed} removed"
+            logger.lifecycle("[assetPack] ${expected.size()} file(s) total: ${summary}")
+            if (linkFailures > 0) {
+                logger.warn("[assetPack] ${linkFailures} file(s) fell back to copy (hardlink unsupported, e.g. cross-drive). To suppress, set transfer to 'copy'.")
+            }
+        }
+    } else {
+        doLast {
+            assetPackOutputDir.deleteDir()
+            assetPackOutputDir.mkdirs()
+            logger.info("[assetPack] no 'assetPack' section in app-config.json, skipping")
+        }
+    }
+}
+
+tasks.matching { it.name == 'preBuild' }.configureEach {
+    dependsOn 'packAssets'
 }
 
 dependencies {
