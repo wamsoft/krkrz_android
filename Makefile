@@ -14,8 +14,12 @@ SDK_DIR := $(shell grep -E '^sdk.dir=' local.properties 2>/dev/null | head -n1 |
 ADB_CAND := $(SDK_DIR)/platform-tools/adb
 ADB ?= $(if $(wildcard $(ADB_CAND)),$(ADB_CAND),adb)
 
-# Read applicationId from app-config.json
-APP_ID ?= $(shell grep -o '"applicationId"[[:space:]]*:[[:space:]]*"[^"]*"' app-config.json 2>/dev/null | sed 's/.*"\([^"]*\)"$$/\1/')
+# Resolve APP_CONFIG_FILE (mirrors gradle: local.properties > env var > ./app-config.json)
+LOCAL_APP_CONFIG := $(shell grep -E '^APP_CONFIG_FILE=' local.properties 2>/dev/null | head -n1 | cut -d'=' -f2-)
+APP_CONFIG_FILE := $(or $(strip $(LOCAL_APP_CONFIG)),$(APP_CONFIG_FILE),app-config.json)
+
+# Read applicationId from the resolved app-config file (shell expands ${ENV_VAR} in path)
+APP_ID ?= $(shell grep -o '"applicationId"[[:space:]]*:[[:space:]]*"[^"]*"' "$(APP_CONFIG_FILE)" 2>/dev/null | sed 's/.*"\([^"]*\)"$$/\1/')
 
 GRADLE_ASSEMBLE := :$(MODULE):assemble$(BUILD_TYPE)
 GRADLE_INSTALL  := :$(MODULE):install$(BUILD_TYPE)
@@ -52,6 +56,7 @@ vars:
 	@echo GRADLEW=$(GRADLEW)
 	@echo SDK_DIR=$(SDK_DIR)
 	@echo ADB=$(ADB)
+	@echo APP_CONFIG_FILE=$(APP_CONFIG_FILE)
 	@echo APP_ID=$(APP_ID)
 
 check-adb:

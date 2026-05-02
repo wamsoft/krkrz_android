@@ -4,15 +4,35 @@ plugins {
     alias(libs.plugins.android.application)
 }
 
-def configFile = rootProject.file("app-config.json")
-def appConfig = new JsonSlurper().parse(configFile)
-
-// Load local.properties for signing config
+// Load local.properties early (used for signing config and APP_CONFIG_FILE override)
 def localProps = new Properties()
 def localPropsFile = rootProject.file('local.properties')
 if (localPropsFile.exists()) {
     localProps.load(localPropsFile.newDataInputStream())
 }
+
+// Resolve app-config.json location:
+//   1. local.properties: APP_CONFIG_FILE=...
+//   2. env var: APP_CONFIG_FILE=...
+//   3. fallback: ./app-config.json (project root)
+// The path supports ${ENV_VAR} expansion. Relative paths are resolved against project root.
+def appConfigOverride = localProps['APP_CONFIG_FILE'] ?: System.getenv('APP_CONFIG_FILE')
+def configFile
+if (appConfigOverride) {
+    def expanded = appConfigOverride.replaceAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/) { m, v ->
+        def value = System.getenv(v)
+        return value != null ? value : ''
+    }
+    def f = new File(expanded)
+    configFile = f.isAbsolute() ? f : rootProject.file(expanded)
+    if (!configFile.exists()) {
+        throw new GradleException("APP_CONFIG_FILE points to a non-existent file: ${configFile} (from '${appConfigOverride}')")
+    }
+    logger.lifecycle("[app-config] using external config: ${configFile}")
+} else {
+    configFile = rootProject.file('app-config.json')
+}
+def appConfig = new JsonSlurper().parse(configFile)
 
 android {
     namespace = 'jp.wamsoft.krkrz'

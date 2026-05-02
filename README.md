@@ -412,6 +412,7 @@ env:
 
 ### 1. アプリID・バージョン情報の変更
 プロジェクトルートの `app-config.json` ファイルを編集してください。
+(または下記「外部 app-config.json への切り替え」で別ファイルを参照させることもできます)
 
 ```json
 {
@@ -432,6 +433,51 @@ env:
 * `ndkVersion`: 利用する NDK のバージョン
 
 ※ `app/build.gradle` はこの JSON ファイルを自動的に読み込みます。
+
+### 1.0.1. 外部 app-config.json への切り替え (APP_CONFIG_FILE)
+
+リポジトリ内の `./app-config.json` ではなく、**外部フォルダにある別ファイル**を
+`app-config.json` として読み込ませることができます。テンプレートのリポジトリは
+共通のまま、各アプリ固有の設定 (applicationId、`assetPack`、`cmake` 等) を
+プロジェクト側のフォルダで管理する用途を想定しています。
+
+優先順位:
+
+1. `local.properties` の `APP_CONFIG_FILE=...`
+2. 環境変数 `APP_CONFIG_FILE=...`
+3. 未指定時はリポジトリの `./app-config.json` (現状動作)
+
+**`local.properties` で指定する例** (推奨。マシン固有設定なので gitignore 済み):
+
+```properties
+APP_CONFIG_FILE=C:/work/myproject/app-config.json
+# 環境変数展開も可
+# APP_CONFIG_FILE=${KRKRZ_BASE}/myproject/app-config.json
+```
+
+**環境変数で指定する例** (CI 等):
+
+```bash
+export APP_CONFIG_FILE=/path/to/myproject/app-config.json
+./gradlew assembleDebug
+```
+
+仕様:
+
+- パス文字列は `${ENV_VAR}` 形式の環境変数展開に対応
+- 絶対パス、または相対パス (相対の場合はプロジェクトルートからの解決)
+- 指定があってファイルが存在しない場合は **ビルドが即座にエラー停止** (誤指定の早期発見)
+- `assetPack.projectFolder` 等の他のパス指定はその外部 `app-config.json` から見た
+  ベースではなく、**Android プロジェクトルート (このリポジトリのルート)** からの相対です。
+  外部 config 内で `${KRKRZ_BASE}` 等の環境変数を使ってアクセスするのが安定します。
+
+注意:
+
+- **Makefile 側の MSYS2 制約**: MSYS2 の make は recipe シェルに環境変数を
+  伝えないことがあるため、`local.properties` の `APP_CONFIG_FILE` に
+  `${ENV_VAR}` を含めると `make run` 時の `APP_ID` 検出が失敗する場合があります。
+  Makefile 経由で実行するときは **絶対パスでの指定** を推奨します
+  (gradle 直接呼び出しはこの制約を受けません)。
 
 ### 1.1. AndroidManifest の値を外部から差し替える (manifestPlaceholders)
 

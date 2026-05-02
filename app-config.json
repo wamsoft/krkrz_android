@@ -9,26 +9,11 @@
     "cmake": {
         "pluginFolders": [
             "app/src/main/cpp",
-            "${KRKRZ_BASE}/wamsoft_work",
-            "${KRKRZ_BASE}/krkrtemplate/plugins"
+            "${KRKRZ_BASE}/krkrz_dev/src/plugins"
         ],
         "plugins": [
-            "csvParser",
-            "playgames",
-            "getSample",
             "json",
-            "KAGParserEx",
-            "layerExBTOA",
-            "layerExImage",
-            "layerExRaster",
-            "saveStruct",
-            "scriptsEx",
-            "shrinkCopy",
-            "getLangName",
-            "textrender",
-            "tjsDataPack",
-            "tlgSliceLoader",
-            "psbfile"
+            "playgames"
         ],
         "staticPlugins": [
             "playgames"
