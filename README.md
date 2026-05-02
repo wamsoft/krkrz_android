@@ -434,6 +434,47 @@ env:
 
 ※ `app/build.gradle` はこの JSON ファイルを自動的に読み込みます。
 
+### 1.0.0. APK / AAB の出力名・出力先 (apk)
+
+`apk` セクションでビルド成果物のファイル名と追加コピー先を制御できます。
+
+```jsonc
+"apk": {
+    "baseName": "myapp",   // 既定: "app"
+    "outputDir": "dist"    // 省略可。プロジェクト相対 / 絶対 / ${ENV_VAR} 展開可
+}
+```
+
+挙動:
+
+- **ファイル名**: `<baseName>-<versionName>-<variant>.apk` 形式に変更
+  (例: `myapp-1.0-debug.apk`、`myapp-1.0-release.apk`、
+  `myapp-1.0-releaseDebugSigned.apk`)。AGP 標準の出力先
+  (`app/build/outputs/apk/<variant>/`) のファイル名がそのまま変わります。
+- **AAB の AGP 標準出力先**は `app-<variant>.aab` のまま (AGP 制約)。
+  ただし `outputDir` 経由でコピーされた AAB は同じ命名規則
+  (`<baseName>-<versionName>-<variant>.aab`) でリネームされます。
+- **`outputDir` を指定した場合**: `assemble<Variant>` / `bundle<Variant>` 後に、
+  対応する APK / AAB を **ハードリンク** (`Files.createLink`) で `outputDir` に
+  複製します。同一ドライブ・FS ならディスクは消費しません。リンク失敗時 (異ドライブ等)
+  は自動でコピーへフォールバック。
+- AGP の標準出力先のファイルもそのまま残るので、Android Studio の
+  Run/Debug や `installDebug` 等の既存導線は壊れません。
+
+例: `make build` 後の出力 (上記設定の場合):
+
+```
+app/build/outputs/apk/debug/myapp-1.0-debug.apk    # AGP 標準位置
+dist/myapp-1.0-debug.apk                            # outputDir (ハードリンク)
+```
+
+仕様:
+
+- `apk` セクション省略時は AGP 既定 (`app-<variant>.apk` / `app-<variant>.aab`)。
+- `outputDir` の `${ENV_VAR}` 展開対応 (例: `"${KRKRZ_BASE}/builds"`)。
+- `outputDir` を **gitignore** したい場合は `.gitignore` に追加してください
+  (リポジトリ外を指定すれば不要)。
+
 ### 1.0.1. 外部 app-config.json への切り替え (APP_CONFIG_FILE)
 
 リポジトリ内の `./app-config.json` ではなく、**外部フォルダにある別ファイル**を

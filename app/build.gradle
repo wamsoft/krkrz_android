@@ -34,6 +34,24 @@ if (appConfigOverride) {
 }
 def appConfig = new JsonSlurper().parse(configFile)
 
+// --- apk: rename outputs (<baseName>-<versionName>-<variant>.{apk,aab}) and optional copy/link to outputDir ---
+def apkConfig = appConfig.apk
+def apkBaseNameFull = null  // "<baseName>-<versionName>"
+def apkOutputDir = null
+if (apkConfig) {
+    def baseName = (apkConfig.baseName ?: 'app') as String
+    apkBaseNameFull = "${baseName}-${appConfig.versionName}"
+    if (apkConfig.outputDir) {
+        def raw = apkConfig.outputDir as String
+        def expanded = raw.replaceAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/) { m, v ->
+            def value = System.getenv(v)
+            return value != null ? value : ''
+        }
+        def f = new File(expanded)
+        apkOutputDir = f.isAbsolute() ? f : rootProject.file(expanded)
+    }
+}
+
 android {
     namespace = 'jp.wamsoft.krkrz'
     compileSdk appConfig.compileSdk
@@ -356,6 +374,65 @@ tasks.matching {
             it.name.startsWith('externalNativeBuild')
 }.configureEach {
     dependsOn 'generateMyappCmake'
+}
+
+// --- apk filename override + optional outputDir mirror (link or copy) ---
+if (apkBaseNameFull) {
+    android.applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = "${apkBaseNameFull}-${variant.name}.apk"
+        }
+    }
+}
+
+if (apkOutputDir) {
+    def linkOrCopyArtifact = { src, dst ->
+        if (dst.exists()) dst.delete()
+        dst.parentFile.mkdirs()
+        try {
+            java.nio.file.Files.createLink(dst.toPath(), src.toPath())
+            logger.lifecycle("[apk] linked ${dst}")
+        } catch (Exception e) {
+            java.nio.file.Files.copy(
+                    src.toPath(), dst.toPath(),
+                    java.nio.file.StandardCopyOption.COPY_ATTRIBUTES)
+            logger.lifecycle("[apk] copied ${dst} (hardlink unsupported: ${e.message})")
+        }
+    }
+
+    android.applicationVariants.all { variant ->
+        def variantNameCapitalized = variant.name.capitalize()
+
+        // APK: assemble<Variant>
+        tasks.matching { it.name == "assemble${variantNameCapitalized}" }.configureEach { task ->
+            task.doLast {
+                apkOutputDir.mkdirs()
+                variant.outputs.each { output ->
+                    def src = output.outputFile
+                    if (src && src.exists()) {
+                        linkOrCopyArtifact(src, new File(apkOutputDir, src.name))
+                    }
+                }
+            }
+        }
+
+        // AAB: bundle<Variant>. AGP keeps default name (app-<variant>.aab) at standard location;
+        // we rename during the mirror copy so the artifact in outputDir matches the APK naming scheme.
+        tasks.matching { it.name == "bundle${variantNameCapitalized}" }.configureEach { task ->
+            task.doLast {
+                apkOutputDir.mkdirs()
+                def aabDir = layout.buildDirectory.dir("outputs/bundle/${variant.name}").get().asFile
+                if (aabDir.exists()) {
+                    aabDir.listFiles({ f -> f.name.endsWith('.aab') } as java.io.FileFilter)?.each { aab ->
+                        def renamed = apkBaseNameFull
+                                ? "${apkBaseNameFull}-${variant.name}.aab"
+                                : aab.name
+                        linkOrCopyArtifact(aab, new File(apkOutputDir, renamed))
+                    }
+                }
+            }
+        }
+    }
 }
 
 dependencies {
