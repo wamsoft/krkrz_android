@@ -14,11 +14,13 @@
         "plugins": [
             "json",
             "playgames",
-            "virtualpad"
+            "virtualpad",
+            "license"
         ],
         "staticPlugins": [
             "playgames",
-            "virtualpad"
+            "virtualpad",
+            "license"
         ]
     },
     "assetPack": {

@@ -1,0 +1,15 @@
+krkrz_android template - license.txt placeholder
+
+これは KrkrZ Android テンプレート同梱のダミー license.txt です。
+本番アプリでは、このファイルを実際の権利情報・著作権表示・第三者
+ライブラリ (zlib / libpng / libogg / libvorbis / libtomcrypt /
+miniaudio / harfbuzz / freetype / SDL3 等) のライセンス文に
+差し替えてください。
+
+このファイルは KrkrZ 本体の TVPGetLicenseString() から
+${ResourcePath}/license.txt として読み込まれ、
+TJS の System.licenseText と Android の権利情報表示画面の両方に出ます。
+%DATE% と %TIME% はビルド日時に置換されます。
+
+----
+krkrz version: %DATE% %TIME%
