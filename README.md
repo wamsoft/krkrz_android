@@ -52,12 +52,19 @@ install-sdl-aar.sh で指定バージョンの SDLをダウンロードして配
 `app/build/generated/assetPack/` に書き出して `assets.srcDirs` 経由で
 APK に含めます。
 
-既存の `${KRKRZ_BASE}/krkrz_dev/src/core/resource` (KrkrZ 本体の必須資材)
-はそのまま残り、`assetPack` は **追加** で merge されます。
+KrkrZ 本体の必須資材である `${KRKRZ_BASE}/krkrz_dev/src/core/resource` も
+`assetPack.sources` の 1 エントリとして取り込みます (以前は `assets.srcDirs` に
+直接追加していましたが、優先度制御と同名ファイル衝突回避のため `assetPack`
+に一本化しました)。`assetPack` の `sources` は **記載順に処理され、先勝ち**
+なので、自プロジェクト側のファイルを先に書けば本体側を上書きできます。
 
 ### 設定例
 
-```json
+リポジトリ同梱の `app-config.json` がそのまま設定例です。本体 resource を
+ルートに展開しつつ、自プロジェクト側の `resource/` で個別ファイルを
+先勝ちで上書きする構成になっています。
+
+```jsonc
 {
     "applicationId": "jp.wamsoft.krkrz.sample",
     "versionCode": 1,
@@ -67,47 +74,62 @@ APK に含めます。
     "minSdk": 29,
     "ndkVersion": "28.2.13676358",
     "assetPack": {
-        "projectFolder": "../myproject",
+        "baseFolder": "${KRKRZ_BASE}/krkrz_dev/src/core",
         "sources": [
             {
+                "comment": "Override files from this project's own resource folder (wins on conflict)",
+                "type": "mirror",
+                "from": "${PROJECT_DIR}/resource",
+                "to": ""
+            },
+            {
+                "comment": "KrkrZ engine base resource (mandatory)",
+                "type": "mirror",
+                "from": "${KRKRZ_BASE}/krkrz_dev/src/core/resource",
+                "to": ""
+            },
+            {
+                "comment": "Game data tree under baseFolder/data",
                 "type": "mirror",
                 "from": "data",
                 "include": ["**/*"],
                 "exclude": ["**/*.bak", "**/*.psd"]
             },
             {
-                "type": "mirror",
-                "from": "append"
-            },
-            {
+                "comment": "Pack .xp3 archives flatly under assets root",
                 "type": "flatten",
-                "from": "startup",
-                "include": ["*.tjs", "*.txt"]
+                "from": "archive",
+                "include": ["*.xp3"]
             }
         ]
     }
 }
 ```
 
+> `comment` のような未知のキーは無視されるので、各 source の意図を
+> 書き残しておく用途で自由に使えます。
+
 ### パラメータ
 
 | キー | 必須 | 内容 |
 |------|------|------|
-| `projectFolder` | ◯ | コピー元のベースフォルダ。`app-config.json` からの相対パス、絶対パス、`${ENV_VAR}` 形式の環境変数展開が利用可能 |
+| `baseFolder` | 相対 `from` を使うなら必須 | コピー元のベースフォルダ。プロジェクトルートからの相対パス、絶対パス、`${ENV_VAR}` 形式の環境変数展開、予約変数 `${PROJECT_DIR}` (= このプロジェクトルート) が利用可能 |
 | `transfer` | 省略可 | 転送方式。`"copy"` (既定) または `"hardlink"` |
-| `resOverride` | 省略可 | `projectFolder` 配下のフォルダ名 (string) または配列。詳細は後述 |
+| `resOverride` | 省略可 | `baseFolder` 配下のフォルダ名 (string) または配列。詳細は後述 |
 | `sources` | ◯ | コピー定義の配列。記載順に処理されます |
 | `sources[].type` | ◯ | `"mirror"` または `"flatten"` |
-| `sources[].from` | ◯ | `projectFolder` 相対のフォルダパス |
+| `sources[].from` | ◯ | フォルダパス。相対なら `baseFolder` 起点、絶対 (`${ENV_VAR}` 展開後に絶対) ならそのまま参照 |
 | `sources[].include` | 省略可 | Ant パターンの配列 (例: `"**/*.png"`)。既定 `["**/*"]` |
 | `sources[].exclude` | 省略可 | Ant パターンの配列。既定 `[]` |
-| `sources[].to` | 省略可 | assets 配下の出力先パス。省略時は `mirror`=`from`、`flatten`=`""` (assets 直下) |
+| `sources[].to` | 省略可 | assets 配下の出力先パス。省略時は `mirror`+相対 `from`=`from` と同じ、`mirror`+絶対 `from`=`from` の末尾フォルダ名、`flatten`=`""` (assets 直下)。`""` を明示すれば常に assets 直下に展開 |
 
 ### type の動作
 
-- **`mirror`**: `<projectFolder>/<from>/` 配下を Ant パターンでフィルタし、
+- **`mirror`**: `from` 配下を Ant パターンでフィルタし、
   ディレクトリ構造を維持したまま `assets/<to>/` 以下にコピーします。
-  例: `from: "data"` → `assets/data/...`
+  例: `from: "data"` → `assets/data/...` /
+  `from: "${KRKRZ_BASE}/krkrz_dev/src/core/resource"` → `assets/resource/...` /
+  同上 + `to: ""` → `assets/...` (root に展開)
 - **`flatten`**: 同様にフィルタしますが、ヒットしたファイルを
   サブディレクトリを捨てて `assets/<to>/` 直下にファイル名のみで
   配置します。
@@ -120,11 +142,26 @@ APK に含めます。
 
 ```
 > Task :app:packAssets
-[assetPack] duplicate skipped (first wins): assets/foo/bar.txt
-            kept   : ../myproject/data/foo/bar.txt
-            skipped: ../myproject/append/foo/bar.txt
-[assetPack] packed 123 file(s) into .../app/build/generated/assetPack
+[assetPack] duplicate skipped (first wins): assets/config.cf
+            kept   : <PROJECT_DIR>/resource/config.cf
+            skipped: <KRKRZ_BASE>/krkrz_dev/src/core/resource/config.cf
+[assetPack] 15 file(s) total: 8 copied, 7 unchanged, 0 removed
 ```
+
+> **注意: `app/src/main/assets/` との衝突は first-wins 対象外**
+>
+> first-wins による吸収は **`assetPack` 内 (`sources[]` 同士)** に限られます。
+> `app/src/main/assets/` (AGP 既定の assets srcDir) に置いたファイルと
+> `assetPack` が生成するファイルに同名のものがあると、後段の AGP の
+> `mergeAssets` で **`DuplicateDataException` でビルドが失敗** します。
+> AGP 側に「片方を勝たせる」ような DSL は無いため、以下のいずれかで回避してください:
+>
+> - 衝突するファイルを `app/src/main/assets/` から削除し、必要なら
+>   `assetPack.sources` 側 (例: `${PROJECT_DIR}/assets-extra` を mirror) に移す
+> - `assetPack.sources[].exclude` で `assetPack` 側からそのファイルを除外する
+>
+> リポジトリの `app/src/main/assets/` は **テンプレートとして基本空** (`.gitignore` 対象)
+> であり、運用上は `assetPack` 経由で資材を取り込むのが推奨フローです。
 
 ### 単独でのタスク実行
 
@@ -156,7 +193,7 @@ APK に含めます。
 
 ```jsonc
 "assetPack": {
-    "projectFolder": "${KRKRZ_BASE}/myproject",
+    "baseFolder": "${KRKRZ_BASE}/myproject",
     "transfer": "hardlink",
     "sources": [ ... ]
 }
@@ -186,7 +223,7 @@ APK に含めます。
 
 ### resOverride: アイコン・res の外部フォルダ上書き
 
-`projectFolder` 配下に Android `res/` 規約に従ったフォルダを置いておけば、
+`baseFolder` 配下に Android `res/` 規約に従ったフォルダを置いておけば、
 `resOverride` でそれを `app/src/main/res/` の上に重ね、**個別ファイル単位 / values
 要素単位で上書き** できます。各 buildType の `res.srcDirs` に追加する形で実装
 されており、AGP のリソースマージ機構をそのまま使うので、独自タスクや事前コピーは
@@ -194,7 +231,7 @@ APK に含めます。
 
 ```jsonc
 "assetPack": {
-    "projectFolder": "${KRKRZ_BASE}/myproject",
+    "baseFolder": "${KRKRZ_BASE}/myproject",
     "resOverride": "android-res",
     // 配列で複数のオーバーレイも指定可能 (後ろほど優先):
     // "resOverride": ["base-res", "brand-res"],
@@ -202,7 +239,7 @@ APK に含めます。
 }
 ```
 
-外部フォルダ構造の例 (`<projectFolder>/android-res/` 配下):
+外部フォルダ構造の例 (`<baseFolder>/android-res/` 配下):
 
 ```
 android-res/
@@ -219,13 +256,57 @@ android-res/
 
 仕様:
 
-- `resOverride` の値は `projectFolder` からの相対フォルダ名 (またはその配列)。
+- `resOverride` の値は `baseFolder` からの相対フォルダ名 (またはその配列)。
 - フォルダ構造は **Android `res/` 規約** (`mipmap-*`, `drawable*`, `values*` 等の
   qualifier dir 構造) に従ってください。素の PNG をフラットに置く形には対応しません。
 - 全 buildType (debug / release / releaseDebugSigned) に同じオーバーレイが適用されます。
 - `values/strings.xml` のような `values` リソースは **要素単位でマージ** されるため、
   `app_name` だけ書いたファイルを置けば他の string はそのまま残ります。
 - 配列で指定した場合、**後ろの要素ほど優先** (AGP の `srcDirs` の追加順に従う)。
+
+## パス文字列の `${...}` 展開と `${PROJECT_DIR}`
+
+`app-config.json` 内のパス文字列は `${...}` 形式で展開できます。
+
+- `${ENV_VAR}`: プロセスの環境変数を参照します。未定義時は **空文字** に展開されます (例: `${KRKRZ_BASE}/foo` で `KRKRZ_BASE` 未設定なら `/foo` になる)。
+- `${PROJECT_DIR}`: 予約変数。**このリポジトリ (Android プロジェクト) のルート** の絶対パスに展開されます。外部 `app-config.json` (`APP_CONFIG_FILE`) を使っている場合でも `${PROJECT_DIR}` が指すのは **このリポジトリのルート** であり、外部 config の置き場ではありません。
+
+### `${PROJECT_DIR}` / `${ENV_VAR}` が使える設定
+
+| 設定 | 役割 |
+|------|------|
+| `APP_CONFIG_FILE` (`local.properties` / 環境変数) | 外部 `app-config.json` のパス |
+| `apk.outputDir` | APK / AAB の追加コピー先 |
+| `assetPack.baseFolder` | `sources[].from` の相対起点 |
+| `assetPack.sources[].from` | コピー元フォルダ (絶対指定時) |
+| `cmake.pluginFolders[]` | プラグイン配置ディレクトリ |
+
+> `assetPack.resOverride` (`baseFolder` 配下のフォルダ名前提) と、`cmake.plugins` / `cmake.staticPlugins` (パスではなくプラグイン名) は展開対象外です。
+
+### 使用例
+
+```jsonc
+{
+    "apk": {
+        "outputDir": "${PROJECT_DIR}/../dist"
+    },
+    "assetPack": {
+        "baseFolder": "${PROJECT_DIR}/../myproject",
+        "sources": [
+            { "type": "mirror", "from": "data" },
+            { "type": "mirror",
+              "from": "${KRKRZ_BASE}/krkrz_dev/src/core/resource",
+              "to": "" }
+        ]
+    },
+    "cmake": {
+        "pluginFolders": [
+            "${PROJECT_DIR}/app/src/main/cpp",
+            "${KRKRZ_BASE}/krkrz_dev/src/plugins"
+        ]
+    }
+}
+```
 
 ## ビルドと実行 (Gradle)
 
@@ -508,7 +589,7 @@ export APP_CONFIG_FILE=/path/to/myproject/app-config.json
 - パス文字列は `${ENV_VAR}` 形式の環境変数展開に対応
 - 絶対パス、または相対パス (相対の場合はプロジェクトルートからの解決)
 - 指定があってファイルが存在しない場合は **ビルドが即座にエラー停止** (誤指定の早期発見)
-- `assetPack.projectFolder` 等の他のパス指定はその外部 `app-config.json` から見た
+- `assetPack.baseFolder` 等の他のパス指定はその外部 `app-config.json` から見た
   ベースではなく、**Android プロジェクトルート (このリポジトリのルート)** からの相対です。
   外部 config 内で `${KRKRZ_BASE}` 等の環境変数を使ってアクセスするのが安定します。
 

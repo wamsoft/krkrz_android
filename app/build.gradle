@@ -11,6 +11,24 @@ if (localPropsFile.exists()) {
     localProps.load(localPropsFile.newDataInputStream())
 }
 
+// ${VAR} expansion used across this file. Reserved: ${PROJECT_DIR} = rootProject root.
+// Other names resolve from process environment (empty string if undefined).
+def projectDirPath = rootProject.projectDir.absolutePath
+def expandEnv = { String s ->
+    if (s == null) return null
+    return s.replaceAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/) { match, var ->
+        if (var == 'PROJECT_DIR') return projectDirPath
+        def v = System.getenv(var)
+        return v != null ? v : ''
+    }
+}
+def resolvePath = { String s ->
+    def expanded = expandEnv(s)
+    if (expanded == null || expanded.isEmpty()) return null
+    def f = new File(expanded)
+    return f.isAbsolute() ? f : rootProject.file(expanded)
+}
+
 // Resolve app-config.json location:
 //   1. local.properties: APP_CONFIG_FILE=...
 //   2. env var: APP_CONFIG_FILE=...
@@ -19,12 +37,7 @@ if (localPropsFile.exists()) {
 def appConfigOverride = localProps['APP_CONFIG_FILE'] ?: System.getenv('APP_CONFIG_FILE')
 def configFile
 if (appConfigOverride) {
-    def expanded = appConfigOverride.replaceAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/) { m, v ->
-        def value = System.getenv(v)
-        return value != null ? value : ''
-    }
-    def f = new File(expanded)
-    configFile = f.isAbsolute() ? f : rootProject.file(expanded)
+    configFile = resolvePath(appConfigOverride as String)
     if (!configFile.exists()) {
         throw new GradleException("APP_CONFIG_FILE points to a non-existent file: ${configFile} (from '${appConfigOverride}')")
     }
@@ -42,13 +55,7 @@ if (apkConfig) {
     def baseName = (apkConfig.baseName ?: 'app') as String
     apkBaseNameFull = "${baseName}-${appConfig.versionName}"
     if (apkConfig.outputDir) {
-        def raw = apkConfig.outputDir as String
-        def expanded = raw.replaceAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/) { m, v ->
-            def value = System.getenv(v)
-            return value != null ? value : ''
-        }
-        def f = new File(expanded)
-        apkOutputDir = f.isAbsolute() ? f : rootProject.file(expanded)
+        apkOutputDir = resolvePath(apkConfig.outputDir as String)
     }
 }
 
@@ -113,7 +120,9 @@ android {
 
     sourceSets {
         main {
-            assets.srcDirs += ["${System.getenv('KRKRZ_BASE')}/krkrz_dev/src/core/resource"]
+            // External assets (engine resources etc.) are routed through packAssets into
+            // a single generated dir so duplicates are resolved in packAssets (first-wins)
+            // instead of failing in AGP's mergeAssets.
             assets.srcDirs += [layout.buildDirectory.dir("generated/assetPack").get().asFile]
         }
     }
@@ -132,28 +141,32 @@ android {
 def assetPackOutputDir = layout.buildDirectory.dir("generated/assetPack").get().asFile
 def assetPackConfig = appConfig.assetPack
 
-static def expandEnv(String s) {
-    if (s == null) return null
-    return s.replaceAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/) { match, var ->
-        def v = System.getenv(var)
-        return v != null ? v : ''
-    }
+// Resolve baseFolder once (used by both packAssets and resOverride).
+// `${PROJECT_DIR}` refers to the rootProject root (this Android project).
+def assetPackBaseFolder = null
+if (assetPackConfig?.baseFolder) {
+    assetPackBaseFolder = resolvePath(assetPackConfig.baseFolder as String)
 }
 
-// Resolve projectFolder once (used by both packAssets and resOverride)
-def assetPackProjectFolder = null
-if (assetPackConfig?.projectFolder) {
-    def resolved = expandEnv(assetPackConfig.projectFolder as String)
-    def f = new File(resolved)
-    assetPackProjectFolder = f.isAbsolute() ? f : rootProject.file(resolved)
+// Resolve a source's `from` to an absolute File.
+//   - absolute path (after ${...} expansion) is used as-is
+//   - relative path is resolved against baseFolder
+def resolveSourceFrom = { String rawFrom ->
+    def expanded = expandEnv(rawFrom)
+    def f = new File(expanded)
+    if (f.isAbsolute()) return f
+    if (assetPackBaseFolder == null) {
+        throw new GradleException("[assetPack] 'from' is relative ('${rawFrom}') but 'baseFolder' is not set")
+    }
+    return new File(assetPackBaseFolder, expanded)
 }
 
 // resOverride: overlay external res folder(s) on top of main res via buildType source sets
-if (assetPackConfig?.resOverride && assetPackProjectFolder != null) {
+if (assetPackConfig?.resOverride && assetPackBaseFolder != null) {
     def overlayNames = assetPackConfig.resOverride instanceof List
             ? assetPackConfig.resOverride
             : [assetPackConfig.resOverride]
-    def overlayDirs = overlayNames.collect { new File(assetPackProjectFolder, it as String) }
+    def overlayDirs = overlayNames.collect { new File(assetPackBaseFolder, it as String) }
     android.buildTypes.configureEach { bt ->
         def ss = android.sourceSets.findByName(bt.name)
         if (ss != null) ss.res.srcDirs(*overlayDirs)
@@ -167,7 +180,6 @@ tasks.register('packAssets') {
     outputs.dir(assetPackOutputDir)
 
     if (assetPackConfig != null) {
-        def projectFolder = assetPackProjectFolder
         def sources = (assetPackConfig.sources ?: []) as List
         def transferMode = (assetPackConfig.transfer ?: 'copy') as String
         if (transferMode != 'copy' && transferMode != 'hardlink') {
@@ -175,13 +187,14 @@ tasks.register('packAssets') {
         }
 
         // Declare inputs (so the task is UP-TO-DATE when nothing changes)
-        sources.each { src ->
-            def fromDir = new File(projectFolder, src.from as String)
+        sources.eachWithIndex { src, idx ->
+            if (!src.from) return
+            def fromDir = resolveSourceFrom(src.from as String)
             if (fromDir.exists()) {
                 def includes = (src.include ?: ['**/*']) as List
                 def excludes = (src.exclude ?: []) as List
                 inputs.files(fileTree(dir: fromDir, includes: includes, excludes: excludes))
-                        .withPropertyName("assetPack-${src.type}-${src.from}")
+                        .withPropertyName("assetPack-${idx}-${src.type}")
                         .withPathSensitivity(PathSensitivity.RELATIVE)
             }
         }
@@ -201,8 +214,24 @@ tasks.register('packAssets') {
                 if (!src.from) {
                     throw new GradleException("[assetPack] 'from' is required")
                 }
-                def fromDir = new File(projectFolder, src.from as String)
-                def toPath = (src.to as String) ?: (type == 'mirror' ? (src.from as String) : '')
+                def rawFrom = src.from as String
+                def fromDir = resolveSourceFrom(rawFrom)
+                def fromIsAbsolute = new File(expandEnv(rawFrom)).isAbsolute()
+
+                // Default `to`:
+                //   - mirror + relative `from` → same as `from` (preserve subtree)
+                //   - mirror + absolute `from` → last folder name of `from`
+                //   - flatten → '' (root)
+                // Explicit `to` (including `""`) wins.
+                def toPath
+                if (src.containsKey('to')) {
+                    toPath = (src.to ?: '') as String
+                } else if (type == 'mirror') {
+                    toPath = fromIsAbsolute ? fromDir.name : rawFrom
+                } else {
+                    toPath = ''
+                }
+
                 def includes = (src.include ?: ['**/*']) as List
                 def excludes = (src.exclude ?: []) as List
 

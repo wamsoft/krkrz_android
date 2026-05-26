@@ -20,15 +20,29 @@
         ]
     },
     "assetPack": {
-        "projectFolder": "${KRKRZ_BASE}/krkrz_dev/src/core",
+        "baseFolder": "${KRKRZ_BASE}/krkrz_dev/src/core",
         "sources": [
             {
+                "comment": "Copy all files from this project's resource folder to the root of asset pack",
+                "type": "mirror",
+                "from": "${PROJECT_DIR}/resource",
+                "to": ""
+            },
+            {
+                "comment": "Copy all files from KRKRZ base resource folder to the root of asset pack",
+                "type": "mirror",
+                "from": "${KRKRZ_BASE}/krkrz_dev/src/core/resource",
+                "to": ""
+            },
+            {
+                "comment": "Copy all files from baseFolder/data folder to the root of asset pack, excluding backup and Photoshop files",
                 "type": "mirror",
                 "from": "data",
                 "include": ["**/*"],
                 "exclude": ["**/*.bak", "**/*.psd"]
             },
             {
+                "comment": "Copy all .xp3 files from baseFolder/archive folder to the root of asset pack. The directory structure will be flattened.",
                 "type": "flatten",
                 "from": "archive",
                 "include": ["*.xp3"]
