@@ -19,6 +19,7 @@ import jp.wamsoft.krkrz.playgames.PlayGamesBridge;
 import jp.wamsoft.krkrz.ui.LicenseActivity;
 import jp.wamsoft.krkrz.ui.PlayGamesAdminActivity;
 import jp.wamsoft.krkrz.ui.SettingsActivity;
+import jp.wamsoft.krkrz.virtualpad.VirtualPadPrefs;
 
 /**
  * KrkrZ のメイン Activity。
@@ -38,6 +39,11 @@ public class KrkrzActivity extends SDLActivity {
 
         setAssetManager(getAssets());
         PlayGamesBridge.initialize(this);
+
+        // 仮想パッドの SharedPreferences 値を native へ流す。Set* は g_state ではなく
+        // モジュールレベル atomic を更新するので、virtualpad::Init() より早く呼ばれても
+        // 値は保持され Init 時に反映される。
+        VirtualPadPrefs.apply(this);
     }
 
     @Override

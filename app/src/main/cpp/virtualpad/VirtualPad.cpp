@@ -61,11 +61,15 @@ constexpr ButtonLayout kLayoutBottom[] = {
 };
 constexpr int kLayoutBottomCount = sizeof(kLayoutBottom) / sizeof(kLayoutBottom[0]);
 
-struct State {
-    std::atomic<bool>  enabled{true};
-    std::atomic<float> opacity{0.55f};
-    std::atomic<int>   preset{0};
+// 設定値は g_state の外に出して常に存在させる。Java からの Set 呼び出しが
+// virtualpad::Init() より早く飛んで来ても保持されるようにするため (アプリ起動時
+// の KrkrzActivity.onCreate → VirtualPadPrefs.apply は plugin PreRegist より先に
+// 走るのが普通)。
+std::atomic<bool>  g_enabled{true};
+std::atomic<float> g_opacity{0.55f};
+std::atomic<int>   g_preset{0};
 
+struct State {
     SDL_Joystick    *joystick = nullptr;
     SDL_JoystickID   joystick_id = 0;
 
@@ -115,8 +119,8 @@ void ReleaseButton(int btn_index) {
 // ============================================================================
 
 bool SDLCALL EventWatcher(void *ud, SDL_Event *event) {
-    if (!g_state || !g_state->enabled.load()) return true;
-    if (!g_state->joystick) return true;
+    if (!g_enabled.load()) return true;
+    if (!g_state || !g_state->joystick) return true;
 
     int count;
     const ButtonLayout *layout = CurrentLayout(&count);
@@ -150,7 +154,8 @@ bool SDLCALL EventWatcher(void *ud, SDL_Event *event) {
 // ============================================================================
 
 void RenderSDL(SDL_Renderer *renderer, void *ud) {
-    if (!g_state || !g_state->enabled.load()) return;
+    if (!g_enabled.load()) return;
+    if (!g_state) return;
     if (!renderer) return;
 
     int w = 0, h = 0;
@@ -159,7 +164,7 @@ void RenderSDL(SDL_Renderer *renderer, void *ud) {
 
     int count;
     const ButtonLayout *layout = CurrentLayout(&count);
-    Uint8 alpha = (Uint8)(g_state->opacity.load() * 255.0f);
+    Uint8 alpha = (Uint8)(g_opacity.load() * 255.0f);
 
     SDL_BlendMode old_blend = SDL_BLENDMODE_NONE;
     SDL_GetRenderDrawBlendMode(renderer, &old_blend);
@@ -279,7 +284,8 @@ struct VertexGL {
 static_assert(sizeof(VertexGL) == 12, "VertexGL packing");
 
 void RenderGL(void *ud) {
-    if (!g_state || !g_state->enabled.load()) return;
+    if (!g_enabled.load()) return;
+    if (!g_state) return;
     if (!InitGL()) return;
 
     GLint vp[4] = {0};
@@ -303,7 +309,7 @@ void RenderGL(void *ud) {
 
     int count;
     const ButtonLayout *layout = CurrentLayout(&count);
-    uint8_t alpha = (uint8_t)(g_state->opacity.load() * 255.0f);
+    uint8_t alpha = (uint8_t)(g_opacity.load() * 255.0f);
 
     // 6 vertices per quad (2 triangles), 8 buttons = 48 vertices, ボタンは枠線も
     // 出すので fill + outline で 12 quads 程度。最初は fill のみ。
@@ -415,17 +421,17 @@ void Shutdown() {
 }
 
 void SetEnabled(bool enabled) {
-    if (g_state) g_state->enabled.store(enabled);
+    g_enabled.store(enabled);
 }
 
 void SetOpacity(float opacity) {
     if (opacity < 0.0f) opacity = 0.0f;
     if (opacity > 1.0f) opacity = 1.0f;
-    if (g_state) g_state->opacity.store(opacity);
+    g_opacity.store(opacity);
 }
 
 void SetPreset(int preset) {
-    if (g_state) g_state->preset.store(preset);
+    g_preset.store(preset);
 }
 
 } // namespace virtualpad
