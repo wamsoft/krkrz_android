@@ -3,4 +3,17 @@
     <!-- Google Play Console の「ゲームサービス」で発行された App ID (例: 1234567890) -->
     <!-- 未設定のままでも APK はビルドできるが、Play Games の初期化は失敗する -->
     <string name="games_app_id" translatable="false">0000000000</string>
+
+    <!-- Drawer / menu -->
+    <string name="drawer_open">メニューを開く</string>
+    <string name="drawer_close">メニューを閉じる</string>
+    <string name="drawer_header_subtitle">メニュー</string>
+    <string name="menu_settings">機能設定</string>
+    <string name="menu_license">権利情報</string>
+    <string name="menu_playgames">Google Play Games</string>
+
+    <!-- Placeholders (Phase 3-5 で本実装に差し替え) -->
+    <string name="settings_placeholder">(Phase 3 で実装予定) 仮想パッドの有効化・半透明表示などをここから操作できるようになります。</string>
+    <string name="license_placeholder">(Phase 4 で実装予定) 吉里吉里Z 本体が保持する権利情報をここに表示します。</string>
+    <string name="playgames_placeholder">(Phase 5 で実装予定) Google Play Games のサインイン状態・実績一覧・セーブデータをここから確認できるようになります。</string>
 </resources>

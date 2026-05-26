@@ -63,6 +63,19 @@
             <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
         </intent-filter>
     </activity>
+
+    <activity
+        android:name="jp.wamsoft.krkrz.ui.SettingsActivity"
+        android:exported="false"
+        android:parentActivityName="jp.wamsoft.krkrz.KrkrzActivity" />
+    <activity
+        android:name="jp.wamsoft.krkrz.ui.LicenseActivity"
+        android:exported="false"
+        android:parentActivityName="jp.wamsoft.krkrz.KrkrzActivity" />
+    <activity
+        android:name="jp.wamsoft.krkrz.ui.PlayGamesAdminActivity"
+        android:exported="false"
+        android:parentActivityName="jp.wamsoft.krkrz.KrkrzActivity" />
 </application>
 
 </manifest>
