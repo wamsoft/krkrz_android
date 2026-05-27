@@ -1,0 +1,41 @@
+<resources>
+    <string name="app_name">krkrz</string>
+
+    <!-- Drawer / menu -->
+    <string name="drawer_open">メニューを開く</string>
+    <string name="drawer_close">メニューを閉じる</string>
+    <string name="drawer_header_subtitle">メニュー</string>
+    <string name="menu_settings">機能設定</string>
+    <string name="menu_license">権利情報</string>
+    <string name="menu_playgames">Google Play Games</string>
+
+    <!-- Settings - Virtual Pad -->
+    <string name="settings_section_virtualpad">仮想パッド</string>
+    <string name="settings_vpad_enabled">仮想パッドを画面に表示する</string>
+    <string name="settings_vpad_enabled_desc">画面下に D-Pad と A/B ボタンをオーバレイ表示し、タッチをゲームパッド入力として KrkrZ に渡します。</string>
+    <string name="settings_vpad_translucent">半透明で表示する</string>
+    <string name="settings_vpad_translucent_desc">OFF にするとボタンを不透明で描画します。背景のゲーム画面と被って見づらい場合に切り替えてください。</string>
+
+    <!-- Play Games admin -->
+    <string name="pg_section_signin">サインイン状態</string>
+    <string name="pg_section_achievements">実績</string>
+    <string name="pg_section_snapshots">セーブデータ (Snapshots)</string>
+    <string name="pg_signin_checking">確認中…</string>
+    <string name="pg_signin_button">サインイン</string>
+    <string name="pg_signin_not_signed_in">サインインしていません</string>
+    <string name="pg_signin_authenticated">サインイン中: %1$s</string>
+    <string name="pg_signin_authenticated_no_player">サインイン中 (プレイヤー情報取得失敗)</string>
+    <string name="pg_refresh">更新</string>
+    <string name="pg_loading">読み込み中…</string>
+    <string name="pg_load_failed">取得失敗: %1$s</string>
+    <string name="pg_achievements_empty">実績は定義されていません (Play Console で定義してください)</string>
+    <string name="pg_achievements_state_unlocked">解除済</string>
+    <string name="pg_achievements_state_revealed">未解除</string>
+    <string name="pg_achievements_state_hidden">非表示</string>
+    <string name="pg_snapshots_empty">セーブデータがありません</string>
+    <string name="pg_sdk_error">Play Games SDK エラー: %1$s</string>
+    <string name="pg_error_unknown">(不明)</string>
+
+    <!-- License (placeholder for when KrkrZ returns empty) -->
+    <string name="license_placeholder">KrkrZ の権利情報が取得できませんでした。</string>
+</resources>

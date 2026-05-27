@@ -250,8 +250,8 @@ public class PlayGamesAdminActivity extends AppCompatActivity {
         parent.addView(row);
     }
 
-    private static String messageOf(Throwable t) {
-        if (t == null) return "(unknown)";
+    private String messageOf(Throwable t) {
+        if (t == null) return getString(R.string.pg_error_unknown);
         String m = t.getMessage();
         return (m != null && !m.isEmpty()) ? m : t.getClass().getSimpleName();
     }

@@ -1,43 +1,44 @@
 <resources>
     <string name="app_name">krkrz</string>
-    <!-- Google Play Console の「ゲームサービス」で発行された App ID (例: 1234567890) -->
-    <!-- 未設定のままでも APK はビルドできるが、Play Games の初期化は失敗する -->
+    <!-- Google Play Console application ID (e.g. 1234567890). -->
+    <!-- The APK still builds when this is left at the default, but Play Games will fail to initialize. -->
     <string name="games_app_id" translatable="false">0000000000</string>
 
     <!-- Drawer / menu -->
-    <string name="drawer_open">メニューを開く</string>
-    <string name="drawer_close">メニューを閉じる</string>
-    <string name="drawer_header_subtitle">メニュー</string>
-    <string name="menu_settings">機能設定</string>
-    <string name="menu_license">権利情報</string>
+    <string name="drawer_open">Open menu</string>
+    <string name="drawer_close">Close menu</string>
+    <string name="drawer_header_subtitle">Menu</string>
+    <string name="menu_settings">Settings</string>
+    <string name="menu_license">Licenses</string>
     <string name="menu_playgames">Google Play Games</string>
 
     <!-- Settings - Virtual Pad -->
-    <string name="settings_section_virtualpad">仮想パッド</string>
-    <string name="settings_vpad_enabled">仮想パッドを画面に表示する</string>
-    <string name="settings_vpad_enabled_desc">画面下に D-Pad と A/B ボタンをオーバレイ表示し、タッチをゲームパッド入力として KrkrZ に渡します。</string>
-    <string name="settings_vpad_translucent">半透明で表示する</string>
-    <string name="settings_vpad_translucent_desc">OFF にするとボタンを不透明で描画します。背景のゲーム画面と被って見づらい場合に切り替えてください。</string>
+    <string name="settings_section_virtualpad">Virtual gamepad</string>
+    <string name="settings_vpad_enabled">Show virtual gamepad on screen</string>
+    <string name="settings_vpad_enabled_desc">Overlay a D-pad and A/B buttons at the bottom of the screen and forward touches to KrkrZ as gamepad input.</string>
+    <string name="settings_vpad_translucent">Translucent overlay</string>
+    <string name="settings_vpad_translucent_desc">When OFF, the buttons are drawn opaque. Toggle this if the buttons are hard to see against the game screen behind them.</string>
 
     <!-- Play Games admin -->
-    <string name="pg_section_signin">サインイン状態</string>
-    <string name="pg_section_achievements">実績</string>
-    <string name="pg_section_snapshots">セーブデータ (Snapshots)</string>
-    <string name="pg_signin_checking">確認中…</string>
-    <string name="pg_signin_button">サインイン</string>
-    <string name="pg_signin_not_signed_in">サインインしていません</string>
-    <string name="pg_signin_authenticated">サインイン中: %1$s</string>
-    <string name="pg_signin_authenticated_no_player">サインイン中 (プレイヤー情報取得失敗)</string>
-    <string name="pg_refresh">更新</string>
-    <string name="pg_loading">読み込み中…</string>
-    <string name="pg_load_failed">取得失敗: %1$s</string>
-    <string name="pg_achievements_empty">実績は定義されていません (Play Console で定義してください)</string>
-    <string name="pg_achievements_state_unlocked">解除済</string>
-    <string name="pg_achievements_state_revealed">未解除</string>
-    <string name="pg_achievements_state_hidden">非表示</string>
-    <string name="pg_snapshots_empty">セーブデータがありません</string>
-    <string name="pg_sdk_error">Play Games SDK エラー: %1$s</string>
+    <string name="pg_section_signin">Sign-in status</string>
+    <string name="pg_section_achievements">Achievements</string>
+    <string name="pg_section_snapshots">Saved games (Snapshots)</string>
+    <string name="pg_signin_checking">Checking…</string>
+    <string name="pg_signin_button">Sign in</string>
+    <string name="pg_signin_not_signed_in">Not signed in</string>
+    <string name="pg_signin_authenticated">Signed in: %1$s</string>
+    <string name="pg_signin_authenticated_no_player">Signed in (failed to fetch player info)</string>
+    <string name="pg_refresh">Refresh</string>
+    <string name="pg_loading">Loading…</string>
+    <string name="pg_load_failed">Load failed: %1$s</string>
+    <string name="pg_achievements_empty">No achievements defined (define them in Play Console)</string>
+    <string name="pg_achievements_state_unlocked">Unlocked</string>
+    <string name="pg_achievements_state_revealed">Locked</string>
+    <string name="pg_achievements_state_hidden">Hidden</string>
+    <string name="pg_snapshots_empty">No saved games</string>
+    <string name="pg_sdk_error">Play Games SDK error: %1$s</string>
+    <string name="pg_error_unknown">(unknown)</string>
 
     <!-- License (placeholder for when KrkrZ returns empty) -->
-    <string name="license_placeholder">KrkrZ の権利情報が取得できませんでした。</string>
+    <string name="license_placeholder">Could not retrieve license information from KrkrZ.</string>
 </resources>

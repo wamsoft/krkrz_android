@@ -1,0 +1,41 @@
+<resources>
+    <string name="app_name">krkrz</string>
+
+    <!-- Drawer / menu -->
+    <string name="drawer_open">打开菜单</string>
+    <string name="drawer_close">关闭菜单</string>
+    <string name="drawer_header_subtitle">菜单</string>
+    <string name="menu_settings">设置</string>
+    <string name="menu_license">许可信息</string>
+    <string name="menu_playgames">Google Play Games</string>
+
+    <!-- Settings - Virtual Pad -->
+    <string name="settings_section_virtualpad">虚拟手柄</string>
+    <string name="settings_vpad_enabled">在屏幕上显示虚拟手柄</string>
+    <string name="settings_vpad_enabled_desc">在屏幕底部叠加显示方向键和 A/B 按钮，将触摸操作作为手柄输入传递给 KrkrZ。</string>
+    <string name="settings_vpad_translucent">半透明显示</string>
+    <string name="settings_vpad_translucent_desc">关闭后按钮将以不透明方式绘制。当按钮与背景游戏画面重叠不易辨识时可切换此项。</string>
+
+    <!-- Play Games admin -->
+    <string name="pg_section_signin">登录状态</string>
+    <string name="pg_section_achievements">成就</string>
+    <string name="pg_section_snapshots">存档 (Snapshots)</string>
+    <string name="pg_signin_checking">检查中…</string>
+    <string name="pg_signin_button">登录</string>
+    <string name="pg_signin_not_signed_in">未登录</string>
+    <string name="pg_signin_authenticated">已登录：%1$s</string>
+    <string name="pg_signin_authenticated_no_player">已登录（获取玩家信息失败）</string>
+    <string name="pg_refresh">刷新</string>
+    <string name="pg_loading">加载中…</string>
+    <string name="pg_load_failed">获取失败：%1$s</string>
+    <string name="pg_achievements_empty">未定义任何成就（请在 Play Console 中定义）</string>
+    <string name="pg_achievements_state_unlocked">已解锁</string>
+    <string name="pg_achievements_state_revealed">未解锁</string>
+    <string name="pg_achievements_state_hidden">隐藏</string>
+    <string name="pg_snapshots_empty">没有存档</string>
+    <string name="pg_sdk_error">Play Games SDK 错误：%1$s</string>
+    <string name="pg_error_unknown">（未知）</string>
+
+    <!-- License (placeholder for when KrkrZ returns empty) -->
+    <string name="license_placeholder">无法获取 KrkrZ 的许可信息。</string>
+</resources>
