@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  Source SVG for the legacy raster launcher icons (mipmap-*dpi/ic_launcher.webp).
+  108x108 canvas, light-blue background, sakana_pair scaled to fit a 88x88
+  box centered in the 108 viewport.
+  Render with Inkscape -> PNG -> webp at each density (mdpi 48 / hdpi 72 /
+  xhdpi 96 / xxhdpi 144 / xxxhdpi 192).
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     viewBox="0 0 108 108"
+     width="108" height="108">
+  <defs>
+    <linearGradient id="gBase">
+      <stop offset="0" style="stop-color:#d3d0ff;stop-opacity:1.0"/>
+      <stop offset="1" style="stop-color:#3b34ff;stop-opacity:1.0"/>
+    </linearGradient>
+    <linearGradient
+       gradientTransform="matrix(1.845904,0,0,1.845904,170.2721,-1211.149)"
+       y2="902.51355" x2="95.183273" y1="799.13434" x1="95.595039"
+       gradientUnits="userSpaceOnUse"
+       id="gBottom"
+       xlink:href="#gBase"/>
+    <linearGradient
+       gradientTransform="matrix(1.845904,0,0,1.845904,170.2721,-1225.916)"
+       y2="801.67975" x2="94.460098" y1="699.67383" x1="94.322540"
+       gradientUnits="userSpaceOnUse"
+       id="gTop"
+       xlink:href="#gBase"/>
+  </defs>
+
+  <rect width="108" height="108" fill="#97c3e8"/>
+
+  <g transform="matrix(0.2023, 0, 0, 0.2023, -19.33, -1.13)">
+    <path
+       style="opacity:0.28021976;fill:#000000;fill-opacity:1.0;fill-rule:evenodd;stroke:#000000;stroke-width:14.767229;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4.0;stroke-opacity:1.0"
+       d="M 335.97523,90.891906 C 231.55808,90.617180 187.72611,155.21742 187.72610,183.18709 C 187.72610,211.15676 231.55826,275.22564 335.97523,275.48227 C 438.53462,275.73212 484.22439,200.89623 484.22437,200.89623 L 556.90683,275.48227 L 556.90683,90.891906 L 483.30142,163.63205 C 483.30142,163.63205 439.46688,91.161795 335.97523,90.891906 z M 188.07220,291.80698 L 188.07220,476.39735 L 260.75466,401.81130 C 260.75466,401.81130 306.44443,476.64719 409.00380,476.39735 C 513.42079,476.14071 557.25294,412.07183 557.25294,384.10217 C 557.25294,356.13250 513.42098,291.53226 409.00380,291.80698 C 305.51217,292.07687 261.67761,364.54712 261.67761,364.54712 L 188.07220,291.80698 z"/>
+
+    <path
+       d="M 466.86295,140.18233 L 540.51640,67.461205 L 540.51640,252.06093 L 467.79528,177.47522 C 467.79528,177.47522 422.11544,252.31077 319.55605,252.06093 C 215.13906,251.80429 171.31682,187.73076 171.31682,159.76110 C 171.31682,131.79143 215.13889,67.186479 319.55605,67.461205 C 423.04767,67.731094 466.86295,140.18233 466.86295,140.18233 z"
+       style="fill:url(#gTop);fill-opacity:1.0;fill-rule:evenodd;stroke:#000000;stroke-width:14.767229;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4.0;stroke-opacity:1.0"/>
+    <path
+       transform="matrix(2.142749,0,0,2.142749,157.3553,-1627.458)"
+       d="M 46.972093 834.16925 A 10.101525 10.101525 0 1 1  26.769042,834.16925 A 10.101525 10.101525 0 1 1  46.972093 834.16925 z"
+       style="fill:#000000;fill-opacity:1.0;stroke:#000000;stroke-width:2.0;stroke-miterlimit:4.0;stroke-dashoffset:0;stroke-opacity:1.0"/>
+
+    <path
+       d="M 245.29121,341.07904 L 171.63775,268.35792 L 171.63775,452.95764 L 244.35888,378.37193 C 244.35888,378.37193 290.03872,453.20748 392.59809,452.95764 C 497.01510,452.70100 540.83733,388.62747 540.83733,360.65781 C 540.83733,332.68814 497.01527,268.08319 392.59809,268.35792 C 289.10648,268.62780 245.29121,341.07904 245.29121,341.07904 z"
+       style="fill:url(#gBottom);fill-opacity:1.0;fill-rule:evenodd;stroke:#000000;stroke-width:14.767229;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4.0;stroke-opacity:1.0"/>
+    <path
+       d="M 444.36583,354.71697 C 444.36583,354.71697 453.28610,381.58744 471.72131,381.58744 C 490.15655,381.58744 498.48213,354.20999 498.48213,354.20999"
+       style="fill:none;fill-opacity:0.75;fill-rule:evenodd;stroke:#000000;stroke-width:14.767229;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4.0;stroke-opacity:1.0"/>
+  </g>
+</svg>
