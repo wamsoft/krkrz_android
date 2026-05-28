@@ -18,6 +18,16 @@ SDL3 上で動く KrkrZ エンジンを JNI から呼び出し、`assets/data/st
 - `app/libs/SDL3-*.aar`: SDL3 の AAR を配置する。`./install-sdl-aar.sh` で固定バージョンをダウンロードして配置できる (現在 3.4.0)。`app/build.gradle` の `fileTree(dir: 'libs', include: ['*.aar'])` で自動 implementation される。
 - Android SDK は `local.properties` の `sdk.dir` から検出される。
 
+### ビルドシステムと案件フォルダの分離
+
+このリポジトリは「共通のビルドシステム」、ビルド対象の案件 (app-config.json + リソース) は別フォルダ、という構成を取れる。
+
+- `BUILD_SYSTEM_DIR`: このリポジトリのルート (gradle/cmake/cpp/java のソースが置いてある場所)。常に固定で、Makefile / settings.gradle が自動で解決する。
+- `PROJECT_DIR` (環境変数): 案件フォルダ。`${PROJECT_DIR}/app-config.json` が参照され、`${PROJECT_DIR}/build/android/` 以下にビルド出力 (`app/` と `root/`) が掃き出される。**未設定の場合 `BUILD_SYSTEM_DIR` にフォールバック** するので、このリポジトリ単体で「サンプル」としてビルドできる。
+- `app-config.json` と `*.gradle` 内の `${VAR}` 展開で `${BUILD_SYSTEM_DIR}` と `${PROJECT_DIR}` の両方が使える。相対パスは `${PROJECT_DIR}` 基準で解決される。ビルドシステム側を指したい場合 (例: `app/src/main/cpp` の Android 専用プラグインフォルダ) は `${BUILD_SYSTEM_DIR}/...` を明示する。
+- `local.properties` (sdk.dir / 署名情報) は `BUILD_SYSTEM_DIR` 直下のみ参照。案件横断のビルド環境設定なので案件側に置く必要はない。
+- 案件を切り替えたら一度 `make clean-cmake` を推奨。`.cxx/` だけは AGP の仕様上 `${BUILD_SYSTEM_DIR}/app/.cxx/` に固定で生成されるため、前案件の CMake/vcpkg 状態が残る可能性がある。
+
 ## よく使うコマンド
 
 ルートの `Makefile` が `./gradlew` の薄いラッパー。Git Bash / MSYS2 環境を想定。

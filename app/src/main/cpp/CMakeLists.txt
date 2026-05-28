@@ -31,10 +31,13 @@ project(krkrz_android)
 # 環境変数KRKRZ_BASE に krkrz用の各種ソースのベースパスを設定
 cmake_path(SET KRKRZ_BASE "$ENV{KRKRZ_BASE}")
 
-set(MYAPP_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/generated/cmake/myapp.cmake")
-if (EXISTS "${MYAPP_CMAKE_PATH}")
-	message(STATUS "Including myapp.cmake from ${MYAPP_CMAKE_PATH}")
-	include(${MYAPP_CMAKE_PATH})
+# myapp.cmake は build.gradle の generateMyappCmake タスクが
+# ${PROJECT_DIR}/build/android/app/generated/cmake/myapp.cmake へ生成し、
+# build.gradle が defaultConfig.externalNativeBuild.cmake.arguments で
+# -DMYAPP_CMAKE_FILE=<absolute path> として渡してくる。
+if (DEFINED MYAPP_CMAKE_FILE AND EXISTS "${MYAPP_CMAKE_FILE}")
+	message(STATUS "Including myapp.cmake from ${MYAPP_CMAKE_FILE}")
+	include("${MYAPP_CMAKE_FILE}")
 endif()
 
 # ----------------------------------------------------

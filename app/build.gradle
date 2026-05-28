@@ -11,29 +11,36 @@ if (localPropsFile.exists()) {
     localProps.load(localPropsFile.newDataInputStream())
 }
 
-// ${VAR} expansion used across this file. Reserved: ${PROJECT_DIR} = rootProject root.
+// ${VAR} expansion used across this file. Reserved:
+//   ${BUILD_SYSTEM_DIR} = this repository (gradle / cmake / cpp sources). Always fixed.
+//   ${PROJECT_DIR}      = per-app project folder (app-config.json + resources + build output).
+//                         Falls back to BUILD_SYSTEM_DIR when env var PROJECT_DIR is unset.
 // Other names resolve from process environment (empty string if undefined).
-def projectDirPath = rootProject.projectDir.absolutePath
+// Both vars are resolved in settings.gradle and stored on gradle.ext.
+def buildSystemDir = (gradle.ext.BUILD_SYSTEM_DIR as File).absolutePath
+def projectDirPath = (gradle.ext.PROJECT_DIR as File).absolutePath
 def expandEnv = { String s ->
     if (s == null) return null
     return s.replaceAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/) { match, var ->
+        if (var == 'BUILD_SYSTEM_DIR') return buildSystemDir
         if (var == 'PROJECT_DIR') return projectDirPath
         def v = System.getenv(var)
         return v != null ? v : ''
     }
 }
+// Resolve a path string: expand ${...} vars, then if relative, resolve against ${PROJECT_DIR}.
 def resolvePath = { String s ->
     def expanded = expandEnv(s)
     if (expanded == null || expanded.isEmpty()) return null
     def f = new File(expanded)
-    return f.isAbsolute() ? f : rootProject.file(expanded)
+    return f.isAbsolute() ? f : new File(projectDirPath, expanded)
 }
 
 // Resolve app-config.json location:
 //   1. local.properties: APP_CONFIG_FILE=...
 //   2. env var: APP_CONFIG_FILE=...
-//   3. fallback: ./app-config.json (project root)
-// The path supports ${ENV_VAR} expansion. Relative paths are resolved against project root.
+//   3. fallback: ${PROJECT_DIR}/app-config.json
+// The path supports ${ENV_VAR} expansion. Relative paths are resolved against ${PROJECT_DIR}.
 def appConfigOverride = localProps['APP_CONFIG_FILE'] ?: System.getenv('APP_CONFIG_FILE')
 def configFile
 if (appConfigOverride) {
@@ -43,20 +50,21 @@ if (appConfigOverride) {
     }
     logger.lifecycle("[app-config] using external config: ${configFile}")
 } else {
-    configFile = rootProject.file('app-config.json')
+    configFile = new File(projectDirPath, 'app-config.json')
+    if (!configFile.exists()) {
+        throw new GradleException("app-config.json not found at ${configFile}. Set PROJECT_DIR or place app-config.json in ${projectDirPath}.")
+    }
 }
+logger.lifecycle("[build-layout] BUILD_SYSTEM_DIR=${buildSystemDir}")
+logger.lifecycle("[build-layout] PROJECT_DIR     =${projectDirPath}")
 def appConfig = new JsonSlurper().parse(configFile)
 
-// --- apk: rename outputs (<baseName>-<versionName>-<variant>.{apk,aab}) and optional copy/link to outputDir ---
+// --- apk: rename outputs (<baseName>-<versionName>-<variant>.{apk,aab}) ---
 def apkConfig = appConfig.apk
 def apkBaseNameFull = null  // "<baseName>-<versionName>"
-def apkOutputDir = null
 if (apkConfig) {
     def baseName = (apkConfig.baseName ?: 'app') as String
     apkBaseNameFull = "${baseName}-${appConfig.versionName}"
-    if (apkConfig.outputDir) {
-        apkOutputDir = resolvePath(apkConfig.outputDir as String)
-    }
 }
 
 android {
@@ -92,7 +100,8 @@ android {
                 arguments '-DANDROID_STL=c++_shared',
                           "-DCMAKE_TOOLCHAIN_FILE=${System.getenv('VCPKG_ROOT')}/scripts/buildsystems/vcpkg.cmake",
                           "-DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=${android.ndkDirectory}/build/cmake/android.toolchain.cmake",
-                          "-DANDROID_NDK_HOME=${android.ndkDirectory}"
+                          "-DANDROID_NDK_HOME=${android.ndkDirectory}",
+                          "-DMYAPP_CMAKE_FILE=${layout.buildDirectory.file('generated/cmake/myapp.cmake').get().asFile.absolutePath.replace('\\', '/')}"
                 abiFilters 'arm64-v8a', 'x86_64'
             }
         }
@@ -161,12 +170,14 @@ def resolveSourceFrom = { String rawFrom ->
     return new File(assetPackBaseFolder, expanded)
 }
 
-// resOverride: overlay external res folder(s) on top of main res via buildType source sets
-if (assetPackConfig?.resOverride && assetPackBaseFolder != null) {
+// resOverride: overlay external res folder(s) on top of main res via buildType source sets.
+// Each entry supports ${BUILD_SYSTEM_DIR} / ${PROJECT_DIR} / ${ENV_VAR} expansion; relative
+// paths are resolved against ${PROJECT_DIR} (same rule as the rest of app-config.json).
+if (assetPackConfig?.resOverride) {
     def overlayNames = assetPackConfig.resOverride instanceof List
             ? assetPackConfig.resOverride
             : [assetPackConfig.resOverride]
-    def overlayDirs = overlayNames.collect { new File(assetPackBaseFolder, it as String) }
+    def overlayDirs = overlayNames.collect { resolvePath(it as String) }
     android.buildTypes.configureEach { bt ->
         def ss = android.sourceSets.findByName(bt.name)
         if (ss != null) ss.res.srcDirs(*overlayDirs)
@@ -338,6 +349,8 @@ tasks.matching { it.name == 'preBuild' }.configureEach {
 }
 
 // --- generateMyappCmake: write generated myapp.cmake from app-config.json cmake section ---
+// File lives under :app buildDir (which is redirected to ${PROJECT_DIR}/build/android/app/),
+// and the absolute path is passed to CMake via -DMYAPP_CMAKE_FILE (see defaultConfig above).
 def myappCmakeFile = layout.buildDirectory.file('generated/cmake/myapp.cmake').get().asFile
 def cmakeConfig = appConfig.cmake
 
@@ -353,7 +366,7 @@ tasks.register('generateMyappCmake') {
             def normalizePath = { String p ->
                 def expanded = expandEnv(p)
                 def f = new File(expanded)
-                def abs = f.isAbsolute() ? f : rootProject.file(expanded)
+                def abs = f.isAbsolute() ? f : new File(projectDirPath, expanded)
                 return abs.absolutePath.replace('\\', '/')
             }
 
@@ -410,56 +423,6 @@ if (apkBaseNameFull) {
     android.applicationVariants.all { variant ->
         variant.outputs.all { output ->
             outputFileName = "${apkBaseNameFull}-${variant.name}.apk"
-        }
-    }
-}
-
-if (apkOutputDir) {
-    def linkOrCopyArtifact = { src, dst ->
-        if (dst.exists()) dst.delete()
-        dst.parentFile.mkdirs()
-        try {
-            java.nio.file.Files.createLink(dst.toPath(), src.toPath())
-            logger.lifecycle("[apk] linked ${dst}")
-        } catch (Exception e) {
-            java.nio.file.Files.copy(
-                    src.toPath(), dst.toPath(),
-                    java.nio.file.StandardCopyOption.COPY_ATTRIBUTES)
-            logger.lifecycle("[apk] copied ${dst} (hardlink unsupported: ${e.message})")
-        }
-    }
-
-    android.applicationVariants.all { variant ->
-        def variantNameCapitalized = variant.name.capitalize()
-
-        // APK: assemble<Variant>
-        tasks.matching { it.name == "assemble${variantNameCapitalized}" }.configureEach { task ->
-            task.doLast {
-                apkOutputDir.mkdirs()
-                variant.outputs.each { output ->
-                    def src = output.outputFile
-                    if (src && src.exists()) {
-                        linkOrCopyArtifact(src, new File(apkOutputDir, src.name))
-                    }
-                }
-            }
-        }
-
-        // AAB: bundle<Variant>. AGP keeps default name (app-<variant>.aab) at standard location;
-        // we rename during the mirror copy so the artifact in outputDir matches the APK naming scheme.
-        tasks.matching { it.name == "bundle${variantNameCapitalized}" }.configureEach { task ->
-            task.doLast {
-                apkOutputDir.mkdirs()
-                def aabDir = layout.buildDirectory.dir("outputs/bundle/${variant.name}").get().asFile
-                if (aabDir.exists()) {
-                    aabDir.listFiles({ f -> f.name.endsWith('.aab') } as java.io.FileFilter)?.each { aab ->
-                        def renamed = apkBaseNameFull
-                                ? "${apkBaseNameFull}-${variant.name}.aab"
-                                : aab.name
-                        linkOrCopyArtifact(aab, new File(apkOutputDir, renamed))
-                    }
-                }
-            }
         }
     }
 }

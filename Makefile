@@ -9,14 +9,27 @@ BUILD_TYPE ?= Debug         # Debug or Release
 GRADLEOPT ?=
 GRADLEW ?= ./gradlew $(GRADLEOPT)
 
+# BUILD_SYSTEM_DIR: this repository (gradle / cmake / sources). Fixed.
+# PROJECT_DIR     : per-app project folder (app-config.json + resources + build output).
+#                   Defaults to BUILD_SYSTEM_DIR (sample mode) when env var is unset.
+# Both are exported so gradle / cmake subprocesses see them.
+BUILD_SYSTEM_DIR := $(realpath $(CURDIR))
+PROJECT_DIR ?= $(BUILD_SYSTEM_DIR)
+export BUILD_SYSTEM_DIR
+export PROJECT_DIR
+
+# Build output root under the per-project folder
+BUILD_ROOT := $(PROJECT_DIR)/build/android
+
 # Try to detect SDK dir from local.properties (Windows path -> POSIX path)
-SDK_DIR := $(shell grep -E '^sdk.dir=' local.properties 2>/dev/null | head -n1 | cut -d'=' -f2- | sed 's/\\\\/\//g')
+# local.properties always lives in BUILD_SYSTEM_DIR (it's about the build env, not the project).
+SDK_DIR := $(shell grep -E '^sdk.dir=' "$(BUILD_SYSTEM_DIR)/local.properties" 2>/dev/null | head -n1 | cut -d'=' -f2- | sed 's/\\\\/\//g')
 ADB_CAND := $(SDK_DIR)/platform-tools/adb
 ADB ?= $(if $(wildcard $(ADB_CAND)),$(ADB_CAND),adb)
 
-# Resolve APP_CONFIG_FILE (mirrors gradle: local.properties > env var > ./app-config.json)
-LOCAL_APP_CONFIG := $(shell grep -E '^APP_CONFIG_FILE=' local.properties 2>/dev/null | head -n1 | cut -d'=' -f2-)
-APP_CONFIG_FILE := $(or $(strip $(LOCAL_APP_CONFIG)),$(APP_CONFIG_FILE),app-config.json)
+# Resolve APP_CONFIG_FILE (mirrors gradle: local.properties > env var > ${PROJECT_DIR}/app-config.json)
+LOCAL_APP_CONFIG := $(shell grep -E '^APP_CONFIG_FILE=' "$(BUILD_SYSTEM_DIR)/local.properties" 2>/dev/null | head -n1 | cut -d'=' -f2-)
+APP_CONFIG_FILE := $(or $(strip $(LOCAL_APP_CONFIG)),$(APP_CONFIG_FILE),$(PROJECT_DIR)/app-config.json)
 
 # Read applicationId from the resolved app-config file (shell expands ${ENV_VAR} in path)
 APP_ID ?= $(shell grep -o '"applicationId"[[:space:]]*:[[:space:]]*"[^"]*"' "$(APP_CONFIG_FILE)" 2>/dev/null | sed 's/.*"\([^"]*\)"$$/\1/')
@@ -54,6 +67,9 @@ vars:
 	@echo MODULE=$(MODULE)
 	@echo BUILD_TYPE=$(BUILD_TYPE)
 	@echo GRADLEW=$(GRADLEW)
+	@echo BUILD_SYSTEM_DIR=$(BUILD_SYSTEM_DIR)
+	@echo PROJECT_DIR=$(PROJECT_DIR)
+	@echo BUILD_ROOT=$(BUILD_ROOT)
 	@echo SDK_DIR=$(SDK_DIR)
 	@echo ADB=$(ADB)
 	@echo APP_CONFIG_FILE=$(APP_CONFIG_FILE)
@@ -120,12 +136,15 @@ clean:
 # Use this when CMake state goes weird (e.g. stale plugin paths after editing app-config.json
 # cmake section, vcpkg cache corruption, ABI/triplet mismatches, etc.). The next build will
 # fully reconfigure CMake (which means re-downloading vcpkg deps too — slower).
+# NOTE: .cxx/ is created by AGP under the module directory and cannot be relocated, so it
+# stays under ${BUILD_SYSTEM_DIR}/app/.cxx regardless of PROJECT_DIR. When switching projects,
+# this must be cleaned to avoid stale CMake/vcpkg state from the previous project.
 clean-cmake:
 	@echo "Removing CMake artifacts..."
-	rm -rf app/.cxx
-	rm -rf app/build/intermediates/cxx
-	rm -rf app/build/intermediates/cmake
-	rm -rf app/build/generated/cmake
+	rm -rf "$(BUILD_SYSTEM_DIR)/app/.cxx"
+	rm -rf "$(BUILD_ROOT)/app/intermediates/cxx"
+	rm -rf "$(BUILD_ROOT)/app/intermediates/cmake"
+	rm -rf "$(BUILD_ROOT)/app/generated/cmake"
 
 # Full reset: gradle clean + CMake artifacts. Equivalent to a fresh checkout build.
 distclean: clean clean-cmake

@@ -20,9 +20,46 @@ krkrz_dev （krkrz + plugin 共通プロジェクトフォルダ）がある場�
 
 同時リンクするプラグインの構成は `app-config.json` の `cmake` セクションで指定します
 (後述「CMake プラグイン構成 (cmake)」参照)。ビルド時にこの設定から
-`app/build/generated/cmake/myapp.cmake` が自動生成され、CMake から取り込まれます。
-生成物は `app/build/` 配下なのでクリーンビルドで自動的に消えます。
-直接編集せず JSON を編集してください。
+`${PROJECT_DIR}/build/android/app/generated/cmake/myapp.cmake` (サンプル動作時は
+リポジトリ直下の `build/android/app/generated/cmake/`) が自動生成され、
+CMake から取り込まれます。生成物は `build/android/` 配下なのでクリーンビルドで
+自動的に消えます。直接編集せず JSON を編集してください。
+
+### 0.0. ビルドシステムフォルダと案件フォルダの分離 (BUILD_SYSTEM_DIR / PROJECT_DIR)
+
+このリポジトリは「共通のビルドシステム」、ビルド対象の案件 (app-config.json + リソース)
+は別フォルダ、という構成を取れます。
+
+| 変数 | 意味 |
+|------|------|
+| `BUILD_SYSTEM_DIR` | このリポジトリのルート (gradle/cmake/cpp/java のソースが置いてある場所)。常に固定で、Makefile / settings.gradle が自動で解決します |
+| `PROJECT_DIR` (環境変数) | 案件フォルダ。`${PROJECT_DIR}/app-config.json` が参照され、`${PROJECT_DIR}/build/android/` 以下にビルド出力 (`app/` と `root/`) が掃き出されます |
+
+`PROJECT_DIR` 未設定時は `BUILD_SYSTEM_DIR` にフォールバックするので、このリポジトリ
+単体で「サンプル案件」としてビルドできます (リポジトリ同梱の `app-config.json` /
+`resource/` がそのまま使われる)。
+
+```bash
+# サンプル動作 (このリポジトリ単体)
+make build
+
+# 案件ビルド
+export PROJECT_DIR=/path/to/myproject
+make build      # ${PROJECT_DIR}/app-config.json を読み、
+                # ${PROJECT_DIR}/build/android/app/outputs/apk/... に APK 出力
+```
+
+`app-config.json` 内の `${...}` 展開と相対パス解決は **`PROJECT_DIR` 基準** です。
+ビルドシステム側 (このリポジトリ内のソース) を指したい場合は `${BUILD_SYSTEM_DIR}/...`
+を明示してください (例: Android 専用プラグインの `app/src/main/cpp` 配下)。
+
+`local.properties` (SDK パス・署名情報) は **案件横断のビルド環境設定** なので、
+案件側ではなく `BUILD_SYSTEM_DIR` 直下のみが参照されます。
+
+> **案件を切り替えた直後の注意**: AGP の仕様上 `.cxx/` だけは
+> `${BUILD_SYSTEM_DIR}/app/.cxx/` 固定で生成されます。前案件の CMake / vcpkg
+> キャッシュが残っているとリンクエラーになることがあるので、案件切り替え時は
+> 一度 `make clean-cmake` を流すのを推奨します。
 
 ### 1. ライブラリの配置
 
@@ -49,8 +86,8 @@ install-sdl-aar.sh で指定バージョンの SDLをダウンロードして配
 を、ビルド時に自動で `assets/` に取り込む仕組みです。
 `app-config.json` に `assetPack` セクションを追加すると、
 `packAssets` タスクが自動で `preBuild` 前に走り、指定したファイルを
-`app/build/generated/assetPack/` に書き出して `assets.srcDirs` 経由で
-APK に含めます。
+`${PROJECT_DIR}/build/android/app/generated/assetPack/` に書き出して
+`assets.srcDirs` 経由で APK に含めます。
 
 KrkrZ 本体の必須資材である `${KRKRZ_BASE}/krkrz_dev/src/core/resource` も
 `assetPack.sources` の 1 エントリとして取り込みます (以前は `assets.srcDirs` に
@@ -113,7 +150,7 @@ KrkrZ 本体の必須資材である `${KRKRZ_BASE}/krkrz_dev/src/core/resource`
 
 | キー | 必須 | 内容 |
 |------|------|------|
-| `baseFolder` | 相対 `from` を使うなら必須 | コピー元のベースフォルダ。プロジェクトルートからの相対パス、絶対パス、`${ENV_VAR}` 形式の環境変数展開、予約変数 `${PROJECT_DIR}` (= このプロジェクトルート) が利用可能 |
+| `baseFolder` | 相対 `from` を使うなら必須 | コピー元のベースフォルダ。`${PROJECT_DIR}` 基準の相対パス、絶対パス、`${ENV_VAR}` / `${BUILD_SYSTEM_DIR}` / `${PROJECT_DIR}` 展開が利用可能 |
 | `transfer` | 省略可 | 転送方式。`"copy"` (既定) または `"hardlink"` |
 | `resOverride` | 省略可 | `baseFolder` 配下のフォルダ名 (string) または配列。詳細は後述 |
 | `sources` | ◯ | コピー定義の配列。記載順に処理されます |
@@ -264,34 +301,38 @@ android-res/
   `app_name` だけ書いたファイルを置けば他の string はそのまま残ります。
 - 配列で指定した場合、**後ろの要素ほど優先** (AGP の `srcDirs` の追加順に従う)。
 
-## パス文字列の `${...}` 展開と `${PROJECT_DIR}`
+## パス文字列の `${...}` 展開
 
 `app-config.json` 内のパス文字列は `${...}` 形式で展開できます。
 
+- `${BUILD_SYSTEM_DIR}`: 予約変数。**このリポジトリのルート** (gradle / cmake / cpp/java のソース置き場) の絶対パスに展開されます。Android 専用プラグインなどビルドシステム側のフォルダを指す用途。
+- `${PROJECT_DIR}`: 予約変数。**案件フォルダ** (`app-config.json` を含むフォルダ) の絶対パスに展開されます。環境変数 `PROJECT_DIR` 未設定時は `BUILD_SYSTEM_DIR` と同値 (サンプル動作)。
 - `${ENV_VAR}`: プロセスの環境変数を参照します。未定義時は **空文字** に展開されます (例: `${KRKRZ_BASE}/foo` で `KRKRZ_BASE` 未設定なら `/foo` になる)。
-- `${PROJECT_DIR}`: 予約変数。**このリポジトリ (Android プロジェクト) のルート** の絶対パスに展開されます。外部 `app-config.json` (`APP_CONFIG_FILE`) を使っている場合でも `${PROJECT_DIR}` が指すのは **このリポジトリのルート** であり、外部 config の置き場ではありません。
 
-### `${PROJECT_DIR}` / `${ENV_VAR}` が使える設定
+### 相対パスの解決
+
+`${...}` 展開後に相対パスが残っている場合、**`${PROJECT_DIR}` 基準** で解決されます
+(以前は「このリポジトリのルート」基準でしたが、案件フォルダ分離に合わせて変更)。
+
+### 展開が使える設定
 
 | 設定 | 役割 |
 |------|------|
-| `APP_CONFIG_FILE` (`local.properties` / 環境変数) | 外部 `app-config.json` のパス |
-| `apk.outputDir` | APK / AAB の追加コピー先 |
+| `APP_CONFIG_FILE` (`local.properties` / 環境変数) | 外部 `app-config.json` のパス。指定無しなら `${PROJECT_DIR}/app-config.json` |
 | `assetPack.baseFolder` | `sources[].from` の相対起点 |
 | `assetPack.sources[].from` | コピー元フォルダ (絶対指定時) |
+| `assetPack.resOverride` | res オーバーレイフォルダ。文字列または配列 |
 | `cmake.pluginFolders[]` | プラグイン配置ディレクトリ |
 
-> `assetPack.resOverride` (`baseFolder` 配下のフォルダ名前提) と、`cmake.plugins` / `cmake.staticPlugins` (パスではなくプラグイン名) は展開対象外です。
+> `cmake.plugins` / `cmake.staticPlugins` はパスではなくプラグイン名なので展開対象外です。
 
 ### 使用例
 
 ```jsonc
 {
-    "apk": {
-        "outputDir": "${PROJECT_DIR}/../dist"
-    },
     "assetPack": {
-        "baseFolder": "${PROJECT_DIR}/../myproject",
+        "baseFolder": "${PROJECT_DIR}",
+        "resOverride": "android-res",
         "sources": [
             { "type": "mirror", "from": "data" },
             { "type": "mirror",
@@ -301,7 +342,7 @@ android-res/
     },
     "cmake": {
         "pluginFolders": [
-            "${PROJECT_DIR}/app/src/main/cpp",
+            "${BUILD_SYSTEM_DIR}/app/src/main/cpp",
             "${KRKRZ_BASE}/krkrz_dev/src/plugins"
         ]
     }
@@ -316,7 +357,7 @@ android-res/
 ```bash
 ./gradlew assembleDebug
 ```
-生成された APK は `app/build/outputs/apk/debug/` に出力されます。
+生成された APK は `${PROJECT_DIR}/build/android/app/outputs/apk/debug/` に出力されます (サンプル動作時はリポジトリ直下の `build/android/app/outputs/apk/debug/`)。
 
 ### デバイスへのインストール (デバッグ)
 Android デバイスを接続した状態で実行します。
@@ -404,8 +445,8 @@ export RELEASE_KEY_PASSWORD=your_key_password
 ```
 
 生成物の場所:
-- APK: `app/build/outputs/apk/release/app-release.apk`
-- AAB: `app/build/outputs/bundle/release/app-release.aab`
+- APK: `${PROJECT_DIR}/build/android/app/outputs/apk/release/app-release.apk`
+- AAB: `${PROJECT_DIR}/build/android/app/outputs/bundle/release/app-release.aab`
 
 ### 5. デバッグ署名でのリリースビルド (release-debug)
 
@@ -438,7 +479,7 @@ make install-release-debug
 ./gradlew :app:installReleaseDebugSigned
 ```
 
-生成された APK は `app/build/outputs/apk/releaseDebugSigned/` に出力されます。
+生成された APK は `${PROJECT_DIR}/build/android/app/outputs/apk/releaseDebugSigned/` に出力されます。
 
 > 注意: debug キーで署名されるため、**Google Play へはアップロードできません**。
 > あくまで動作検証専用です。Play 配布用には通常の `assembleRelease` / `bundleRelease`
@@ -452,10 +493,10 @@ make install-release-debug
 
 ```bash
 # APK の署名確認
-apksigner verify --verbose app/build/outputs/apk/release/app-release.apk
+apksigner verify --verbose "${PROJECT_DIR:-.}/build/android/app/outputs/apk/release/app-release.apk"
 
 # AAB の署名確認 (bundletool 使用)
-jarsigner -verify -verbose app/build/outputs/bundle/release/app-release.aab
+jarsigner -verify -verbose "${PROJECT_DIR:-.}/build/android/app/outputs/bundle/release/app-release.aab"
 ```
 
 ### Google Play App Signing について
@@ -515,14 +556,13 @@ env:
 
 ※ `app/build.gradle` はこの JSON ファイルを自動的に読み込みます。
 
-### 1.0.0. APK / AAB の出力名・出力先 (apk)
+### 1.0.0. APK / AAB のファイル名 (apk)
 
-`apk` セクションでビルド成果物のファイル名と追加コピー先を制御できます。
+`apk` セクションでビルド成果物のファイル名を制御できます。
 
 ```jsonc
 "apk": {
-    "baseName": "myapp",   // 既定: "app"
-    "outputDir": "dist"    // 省略可。プロジェクト相対 / 絶対 / ${ENV_VAR} 展開可
+    "baseName": "myapp"   // 既定: "app"
 }
 ```
 
@@ -531,75 +571,63 @@ env:
 - **ファイル名**: `<baseName>-<versionName>-<variant>.apk` 形式に変更
   (例: `myapp-1.0-debug.apk`、`myapp-1.0-release.apk`、
   `myapp-1.0-releaseDebugSigned.apk`)。AGP 標準の出力先
-  (`app/build/outputs/apk/<variant>/`) のファイル名がそのまま変わります。
-- **AAB の AGP 標準出力先**は `app-<variant>.aab` のまま (AGP 制約)。
-  ただし `outputDir` 経由でコピーされた AAB は同じ命名規則
-  (`<baseName>-<versionName>-<variant>.aab`) でリネームされます。
-- **`outputDir` を指定した場合**: `assemble<Variant>` / `bundle<Variant>` 後に、
-  対応する APK / AAB を **ハードリンク** (`Files.createLink`) で `outputDir` に
-  複製します。同一ドライブ・FS ならディスクは消費しません。リンク失敗時 (異ドライブ等)
-  は自動でコピーへフォールバック。
-- AGP の標準出力先のファイルもそのまま残るので、Android Studio の
-  Run/Debug や `installDebug` 等の既存導線は壊れません。
-
-例: `make build` 後の出力 (上記設定の場合):
-
-```
-app/build/outputs/apk/debug/myapp-1.0-debug.apk    # AGP 標準位置
-dist/myapp-1.0-debug.apk                            # outputDir (ハードリンク)
-```
+  (`${PROJECT_DIR}/build/android/app/outputs/apk/<variant>/`) のファイル名が
+  そのまま変わります。
+- **AAB の出力先**は `app-<variant>.aab` のまま (AGP 制約)。
 
 仕様:
 
 - `apk` セクション省略時は AGP 既定 (`app-<variant>.apk` / `app-<variant>.aab`)。
-- `outputDir` の `${ENV_VAR}` 展開対応 (例: `"${KRKRZ_BASE}/builds"`)。
-- `outputDir` を **gitignore** したい場合は `.gitignore` に追加してください
-  (リポジトリ外を指定すれば不要)。
+- 出力先を別フォルダに集めたい場合は、案件側で `PROJECT_DIR` を切り替えるか、
+  シェルスクリプト等で `${PROJECT_DIR}/build/android/app/outputs/apk/...` から
+  コピー / リンクしてください (以前あった `apk.outputDir` 機能は `PROJECT_DIR`
+  方式に統合して廃止しました)。
 
-### 1.0.1. 外部 app-config.json への切り替え (APP_CONFIG_FILE)
+### 1.0.1. 案件フォルダの指定 (PROJECT_DIR / APP_CONFIG_FILE)
 
-リポジトリ内の `./app-config.json` ではなく、**外部フォルダにある別ファイル**を
-`app-config.json` として読み込ませることができます。テンプレートのリポジトリは
-共通のまま、各アプリ固有の設定 (applicationId、`assetPack`、`cmake` 等) を
-プロジェクト側のフォルダで管理する用途を想定しています。
+**通常の運用は `PROJECT_DIR` 環境変数を使ってください** (前述
+「ビルドシステムフォルダと案件フォルダの分離」参照)。`PROJECT_DIR` を指定すると
+案件側の `app-config.json`、リソース、ビルド出力先すべてがその配下に揃います。
+
+```bash
+export PROJECT_DIR=/path/to/myproject
+./gradlew assembleDebug
+```
+
+`PROJECT_DIR` 未指定時は `BUILD_SYSTEM_DIR` (このリポジトリ) にフォールバックします。
+
+**より細かい上書き: `APP_CONFIG_FILE`** — `app-config.json` の位置だけを別の場所に
+向けたい場合 (例: PROJECT_DIR は案件フォルダのままで、config だけバリアント切替)
+に使えます。
 
 優先順位:
 
 1. `local.properties` の `APP_CONFIG_FILE=...`
 2. 環境変数 `APP_CONFIG_FILE=...`
-3. 未指定時はリポジトリの `./app-config.json` (現状動作)
-
-**`local.properties` で指定する例** (推奨。マシン固有設定なので gitignore 済み):
+3. 未指定時は `${PROJECT_DIR}/app-config.json`
 
 ```properties
+# local.properties
 APP_CONFIG_FILE=C:/work/myproject/app-config.json
 # 環境変数展開も可
 # APP_CONFIG_FILE=${KRKRZ_BASE}/myproject/app-config.json
 ```
 
-**環境変数で指定する例** (CI 等):
-
-```bash
-export APP_CONFIG_FILE=/path/to/myproject/app-config.json
-./gradlew assembleDebug
-```
-
 仕様:
 
-- パス文字列は `${ENV_VAR}` 形式の環境変数展開に対応
-- 絶対パス、または相対パス (相対の場合はプロジェクトルートからの解決)
+- パス文字列は `${BUILD_SYSTEM_DIR}` / `${PROJECT_DIR}` / `${ENV_VAR}` の展開に対応
+- 絶対パス、または相対パス (相対の場合は **`PROJECT_DIR` 基準** で解決)
 - 指定があってファイルが存在しない場合は **ビルドが即座にエラー停止** (誤指定の早期発見)
-- `assetPack.baseFolder` 等の他のパス指定はその外部 `app-config.json` から見た
-  ベースではなく、**Android プロジェクトルート (このリポジトリのルート)** からの相対です。
-  外部 config 内で `${KRKRZ_BASE}` 等の環境変数を使ってアクセスするのが安定します。
 
 注意:
 
-- **Makefile 側の MSYS2 制約**: MSYS2 の make は recipe シェルに環境変数を
-  伝えないことがあるため、`local.properties` の `APP_CONFIG_FILE` に
-  `${ENV_VAR}` を含めると `make run` 時の `APP_ID` 検出が失敗する場合があります。
-  Makefile 経由で実行するときは **絶対パスでの指定** を推奨します
-  (gradle 直接呼び出しはこの制約を受けません)。
+- **Makefile 側の MSYS2 制約**: MSYS2 の make は外部シェルの環境変数を取りこぼす
+  ことがあるため、`make` 経由で `PROJECT_DIR` を渡すときは **make 引数として** 
+  指定するのが確実です:
+  ```bash
+  make build PROJECT_DIR=/path/to/myproject
+  ```
+  `./gradlew` 直接呼び出しは環境変数 (`export PROJECT_DIR=...`) で問題ありません。
 
 ### 1.1. AndroidManifest の値を外部から差し替える (manifestPlaceholders)
 
@@ -638,13 +666,14 @@ export APP_CONFIG_FILE=/path/to/myproject/app-config.json
 KrkrZ プラグインの取り込み構成 (旧 `myapp.cmake` の内容) は `app-config.json` の
 `cmake` セクションで管理します。`preBuild` および CMake configure 前に
 `generateMyappCmake` タスクがこのセクションを読み、
-`app/build/generated/cmake/myapp.cmake` を自動生成し、
-CMake (`app/src/main/cpp/CMakeLists.txt`) から `include()` されます。
+`${PROJECT_DIR}/build/android/app/generated/cmake/myapp.cmake` を自動生成し、
+CMake (`app/src/main/cpp/CMakeLists.txt`) から
+`-DMYAPP_CMAKE_FILE=<absolute path>` 経由で `include()` されます。
 
 ```json
 "cmake": {
     "pluginFolders": [
-        "app/src/main/cpp",
+        "${BUILD_SYSTEM_DIR}/app/src/main/cpp",
         "${KRKRZ_BASE}/wamsoft_work",
         "${KRKRZ_BASE}/krkrtemplate/plugins"
     ],
@@ -662,21 +691,22 @@ CMake (`app/src/main/cpp/CMakeLists.txt`) から `include()` されます。
 
 | キー | 内容 | 生成される CMake 変数 |
 |------|------|---------------------|
-| `pluginFolders` | プラグインを探すフォルダ。`app-config.json` 相対パス、絶対パス、`${ENV_VAR}` 環境変数展開が利用可能 | `TVP_PLUGIN_FOLDERS` |
+| `pluginFolders` | プラグインを探すフォルダ。相対パス (`PROJECT_DIR` 基準) / 絶対パス / `${BUILD_SYSTEM_DIR}` / `${PROJECT_DIR}` / `${ENV_VAR}` 展開が利用可能 | `TVP_PLUGIN_FOLDERS` |
 | `plugins` | リンクするプラグイン名の列挙 | `TVP_PLUGINS` |
 | `staticPlugins` | `libkrkrz.so` に静的に組み込むプラグイン名 | `TVP_PLUGINS_STATIC` |
 
 仕様:
 
-- **生成先は `app/build/generated/cmake/myapp.cmake`** で、`app/build/` 配下なので
-  既存の `.gitignore` (`build/`) で自動的にコミット対象外になります。
-  直接編集しても次回ビルドで上書きされるので、設定変更は必ず `app-config.json` 側で
-  行ってください。
+- **生成先は `${PROJECT_DIR}/build/android/app/generated/cmake/myapp.cmake`** で、
+  `build/android/` 配下なので既存の `.gitignore` (`build/`) で自動的にコミット
+  対象外になります。直接編集しても次回ビルドで上書きされるので、設定変更は必ず
+  `app-config.json` 側で行ってください。
 - 各パスは gradle 側で **絶対パスに解決** された状態で書き出されます。
   CMake 側で `${CMAKE_CURRENT_LIST_DIR}` 等を意識する必要はありません。
-- `cmake` セクション自体を省略した場合、`generateMyappCmake` は何もしないので、
-  必要に応じて自分で `app/build/generated/cmake/myapp.cmake` を配置することも
-  可能です (ただし `clean` で消えるため恒常的な使い方には不向き)。
+- このリポジトリ内 (`app/src/main/cpp` 等) のプラグインフォルダを指す場合は
+  `${BUILD_SYSTEM_DIR}/app/src/main/cpp` を明示してください。相対パスは
+  `${PROJECT_DIR}` 基準で解決されるので、案件フォルダ側に存在しないと無視されます。
+- `cmake` セクション自体を省略した場合、`generateMyappCmake` は何もしません。
 
 ### 2. アプリ名の変更
 `app/src/main/res/values/strings.xml` を開き、`app_name` を変更してください。

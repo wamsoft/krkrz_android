@@ -229,7 +229,7 @@ make logcat | grep <name>
 ```bash
 NDK_NM=$HOME/AppData/Local/Android/Sdk/ndk/<version>/toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-nm.exe
 $NDK_NM -D --defined-only \
-  app/build/intermediates/cxx/Debug/*/obj/arm64-v8a/libkrkrz.so \
+  "${PROJECT_DIR:-.}/build/android/app/intermediates/cxx/Debug/*/obj/arm64-v8a/libkrkrz.so" \
   | grep "Java_jp_wamsoft_krkrz_<name>"
 ```
 

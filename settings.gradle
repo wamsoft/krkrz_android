@@ -24,3 +24,28 @@ dependencyResolutionManagement {
 
 rootProject.name = "krkrz"
 include ':app'
+
+// ---- Build layout: split build-system dir vs per-project dir ----
+// BUILD_SYSTEM_DIR : this repository (gradle scripts, cmake, java/cpp sources). Fixed.
+// PROJECT_DIR      : per-app project folder (app-config.json + resources + build output).
+//                    Defaults to BUILD_SYSTEM_DIR (sample mode) when env var is unset.
+// Gradle output for :app is redirected to ${PROJECT_DIR}/build/android/app/
+// (and the root project to ${PROJECT_DIR}/build/android/root/) so that switching
+// PROJECT_DIR fully isolates artifacts per project.
+def buildSystemDir = rootProject.projectDir.absoluteFile
+def projectDirEnv = System.getenv('PROJECT_DIR')
+def projectRootDir = (projectDirEnv != null && !projectDirEnv.trim().isEmpty())
+        ? new File(projectDirEnv.trim()).absoluteFile
+        : buildSystemDir
+
+gradle.ext.BUILD_SYSTEM_DIR = buildSystemDir
+gradle.ext.PROJECT_DIR = projectRootDir
+
+def buildRoot = new File(projectRootDir, 'build/android')
+gradle.beforeProject { p ->
+    if (p.parent == null) {
+        p.layout.buildDirectory.set(new File(buildRoot, 'root'))
+    } else if (p.name == 'app') {
+        p.layout.buildDirectory.set(new File(buildRoot, 'app'))
+    }
+}

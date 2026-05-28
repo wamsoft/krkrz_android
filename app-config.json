@@ -8,7 +8,7 @@
     "ndkVersion": "28.2.13676358",
     "cmake": {
         "pluginFolders": [
-            "app/src/main/cpp",
+            "${BUILD_SYSTEM_DIR}/app/src/main/cpp",
             "${KRKRZ_BASE}/krkrz_dev/src/plugins"
         ],
         "plugins": [
@@ -29,7 +29,7 @@
             {
                 "comment": "Copy all files from this project's resource folder to the root of asset pack",
                 "type": "mirror",
-                "from": "${PROJECT_DIR}/resource",
+                "from": "${BUILD_SYSTEM_DIR}/resource",
                 "to": ""
             },
             {
