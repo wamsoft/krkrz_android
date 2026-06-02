@@ -1,19 +1,30 @@
 // VirtualPad プラグイン本体 - 状態 / イベント / 2 つの描画パス。
 //
-//   - SDL_Renderer 経路 (RenderSDL): KRKRZ_USE_OPENGL=OFF 時の SDLDrawDevice 用
-//   - OpenGL ES 直接経路 (RenderGL): KRKRZ_USE_OPENGL=ON 時の SDLOGLDrawDevice 用
+//   - SDL_Renderer 経路 (RenderSDL): SDLDrawDevice 用 (SDL_RenderGeometry で三角形リスト)
+//   - OpenGL ES 直接経路 (RenderGL): SDLOGLDrawDevice 用 (glDrawArrays GL_TRIANGLES)
 //
-// プラグインは両方の post-render コールバックに登録するので、エンジン側がどちらの
-// パスでビルドされていても同じ見た目で描画される。
+// 両パスとも同じレイアウト + 同じ三角形セットを生成し、座標 / 色 を別フォーマット
+// (SDL_Vertex の float vs GL の uint8 normalized) に変換するだけ。
+//
+// ボタンは face (A/B/X/Y) / shoulder (L/R) / D-pad の 3 種 10 個。
+// 形状: face = 円、shoulder = 角丸矩形、D-pad = 方向三角形。
+// レイアウト座標は「画面短辺 (= min(w, h)) を 1 unit」として持つので、解像度や
+// アスペクト比が変わっても円が円のままになる。
 
 #include "VirtualPad.h"
 
 #include <SDL3/SDL.h>
-#include <glad/gles2.h>   // KrkrZ エンジンと同じ glad 経由で GL 関数を解決する
+#include <glad/gles2.h>
 
 #include <atomic>
-#include <cstring>
+#include <cmath>
+#include <cstdint>
 #include <unordered_map>
+#include <vector>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 // KrkrZ エンジン (sdl3/visual/PostRenderCallback.h) からの forward 宣言
 struct SDL_Renderer;
@@ -31,68 +42,140 @@ namespace virtualpad {
 namespace {
 
 // ============================================================================
-// レイアウト + 状態 (両描画パスから共用)
+// SDL3 仮想ジョイスティック button index
+// ============================================================================
+// SDL_AttachVirtualJoystick で button_mask に set した bit が SDL_GamepadButton
+// enum 順に詰めて joystick button index 0..N-1 に対応する (SDL3 仕様)。
+// 下記の順番は SDL_GAMEPAD_BUTTON_SOUTH..DPAD_RIGHT の enum 値の昇順。
+
+constexpr int kBtnA          = 0;   // SOUTH
+constexpr int kBtnB          = 1;   // EAST
+constexpr int kBtnX          = 2;   // WEST
+constexpr int kBtnY          = 3;   // NORTH
+constexpr int kBtnL          = 4;   // LEFT_SHOULDER
+constexpr int kBtnR          = 5;   // RIGHT_SHOULDER
+constexpr int kBtnDpadUp     = 6;
+constexpr int kBtnDpadDown   = 7;
+constexpr int kBtnDpadLeft   = 8;
+constexpr int kBtnDpadRight  = 9;
+constexpr int kVirtualButtonCount = 10;
+
+// ============================================================================
+// レイアウト定義
 // ============================================================================
 
-// 仮想ジョイスティックの button index。SDL3 は SDL_VirtualJoystickDesc::button_mask
-// で set したビット (SDL_GamepadButton enum 値) を **enum 順に詰めて** joystick button
-// index 0,1,2... に割り当てる。なので button_mask に set した 6 ボタンが順に 0..5。
-constexpr int kBtnIndexA          = 0;   // SOUTH  (1st set bit in mask)
-constexpr int kBtnIndexB          = 1;   // EAST   (2nd)
-constexpr int kBtnIndexDpadUp     = 2;   // DPAD_UP (3rd, mask bit 11)
-constexpr int kBtnIndexDpadDown   = 3;   // DPAD_DOWN (4th, mask bit 12)
-constexpr int kBtnIndexDpadLeft   = 4;   // DPAD_LEFT (5th, mask bit 13)
-constexpr int kBtnIndexDpadRight  = 5;   // DPAD_RIGHT (6th, mask bit 14)
-constexpr int kVirtualButtonCount = 6;
-
-struct ButtonLayout {
-    float x, y, w, h;    // 正規化座標 (window 内 0..1)
-    int button_index;
+enum BtnShape : uint8_t {
+    SHAPE_FACE     = 0,  // 円 (face button)
+    SHAPE_DPAD     = 1,  // 方向三角形
+    SHAPE_SHOULDER = 2,  // 角丸矩形 (L/R)
 };
 
-// Preset 0: bottom layout (D-pad 左下、A/B 右下)
-constexpr ButtonLayout kLayoutBottom[] = {
-    { 0.04f, 0.55f, 0.10f, 0.10f, kBtnIndexDpadUp    },
-    { 0.04f, 0.85f, 0.10f, 0.10f, kBtnIndexDpadDown  },
-    { 0.00f, 0.70f, 0.08f, 0.10f, kBtnIndexDpadLeft  },
-    { 0.12f, 0.70f, 0.08f, 0.10f, kBtnIndexDpadRight },
-    { 0.86f, 0.78f, 0.12f, 0.15f, kBtnIndexA },
-    { 0.74f, 0.85f, 0.10f, 0.10f, kBtnIndexB },
-};
-constexpr int kLayoutBottomCount = sizeof(kLayoutBottom) / sizeof(kLayoutBottom[0]);
+enum AnchorH : uint8_t { ANCH_L, ANCH_R };
+enum AnchorV : uint8_t { ANCH_T, ANCH_B };
 
-// 設定値は g_state の外に出して常に存在させる。Java からの Set 呼び出しが
-// virtualpad::Init() より早く飛んで来ても保持されるようにするため (アプリ起動時
-// の KrkrzActivity.onCreate → VirtualPadPrefs.apply は plugin PreRegist より先に
-// 走るのが普通)。
+struct ColorRGBA { uint8_t r, g, b, a; };
+
+// face = Xbox 配色、L/R/D-pad = グレー、暗縁 = 黒に近いグレー
+constexpr ColorRGBA kColA       = {  78, 196, 110, 255 };  // 緑
+constexpr ColorRGBA kColB       = { 224,  82,  82, 255 };  // 赤
+constexpr ColorRGBA kColX       = {  82, 138, 224, 255 };  // 青
+constexpr ColorRGBA kColY       = { 224, 196,  70, 255 };  // 黄
+constexpr ColorRGBA kColGray    = {  92,  98, 112, 255 };
+constexpr ColorRGBA kColOutline = {  20,  22,  28, 255 };
+
+struct ButtonDef {
+    int      button_index;
+    BtnShape shape;
+    AnchorH  ah;
+    AnchorV  av;
+    float    ox, oy;     // 中心位置 (アンカーからのオフセット、unit = min(w,h))
+    float    sx, sy;     // 半幅 / 半高 (unit = min(w,h)、SHAPE_FACE は sx=半径=sy)
+    uint8_t  dpad_dir;   // 0=up, 1=right, 2=down, 3=left (SHAPE_DPAD のみ意味あり)
+    ColorRGBA color;
+};
+
+// 横画面 (landscape) を前提のレイアウト。
+constexpr ButtonDef kLayout[] = {
+    // ---- 上端: L / R ショルダー ----
+    { kBtnL, SHAPE_SHOULDER, ANCH_L, ANCH_T, 0.13f, 0.06f, 0.10f, 0.025f, 0, kColGray },
+    { kBtnR, SHAPE_SHOULDER, ANCH_R, ANCH_T, 0.13f, 0.06f, 0.10f, 0.025f, 0, kColGray },
+
+    // ---- 右下: face buttons (A/B/X/Y を +字配置) ----
+    // 配置中心: (right - 0.20u, bottom - 0.20u)
+    { kBtnA, SHAPE_FACE, ANCH_R, ANCH_B, 0.20f, 0.10f, 0.055f, 0.055f, 0, kColA }, // 下
+    { kBtnB, SHAPE_FACE, ANCH_R, ANCH_B, 0.10f, 0.20f, 0.055f, 0.055f, 0, kColB }, // 右
+    { kBtnX, SHAPE_FACE, ANCH_R, ANCH_B, 0.30f, 0.20f, 0.055f, 0.055f, 0, kColX }, // 左
+    { kBtnY, SHAPE_FACE, ANCH_R, ANCH_B, 0.20f, 0.30f, 0.055f, 0.055f, 0, kColY }, // 上
+
+    // ---- 左下: D-pad 4 方向 ----
+    { kBtnDpadUp,    SHAPE_DPAD, ANCH_L, ANCH_B, 0.20f, 0.30f, 0.045f, 0.045f, 0, kColGray },
+    { kBtnDpadDown,  SHAPE_DPAD, ANCH_L, ANCH_B, 0.20f, 0.10f, 0.045f, 0.045f, 2, kColGray },
+    { kBtnDpadLeft,  SHAPE_DPAD, ANCH_L, ANCH_B, 0.10f, 0.20f, 0.045f, 0.045f, 3, kColGray },
+    { kBtnDpadRight, SHAPE_DPAD, ANCH_L, ANCH_B, 0.30f, 0.20f, 0.045f, 0.045f, 1, kColGray },
+};
+constexpr int kLayoutCount = sizeof(kLayout) / sizeof(kLayout[0]);
+
+// ============================================================================
+// 状態
+// ============================================================================
+
 std::atomic<bool>  g_enabled{true};
 std::atomic<float> g_opacity{0.55f};
 std::atomic<int>   g_preset{0};
+// HitTest で normalize → pixel 変換するために最新の描画サイズをキャッシュ。
+std::atomic<int>   g_window_w{0};
+std::atomic<int>   g_window_h{0};
 
 struct State {
     SDL_Joystick    *joystick = nullptr;
     SDL_JoystickID   joystick_id = 0;
 
-    std::unordered_map<SDL_FingerID, int> finger_button;
+    std::unordered_map<SDL_FingerID, int> finger_button;  // finger -> layout index
     int button_press_count[kVirtualButtonCount] = {0};
 };
 
 State *g_state = nullptr;
 
-const ButtonLayout *CurrentLayout(int *count_out) {
-    *count_out = kLayoutBottomCount;
-    return kLayoutBottom;
+// ============================================================================
+// ジオメトリ計算
+// ============================================================================
+
+struct PixelRect {
+    float cx, cy;     // 中心
+    float hw, hh;     // 半幅 / 半高
+};
+
+PixelRect ComputeRect(const ButtonDef &b, int w, int h) {
+    float u = (float)(w < h ? w : h);
+    PixelRect r;
+    r.hw = b.sx * u;
+    r.hh = b.sy * u;
+    r.cx = (b.ah == ANCH_L) ? b.ox * u : (float)w - b.ox * u;
+    r.cy = (b.av == ANCH_T) ? b.oy * u : (float)h - b.oy * u;
+    return r;
+}
+
+bool PointInRect(const PixelRect &r, float px, float py) {
+    return (px >= r.cx - r.hw && px <= r.cx + r.hw &&
+            py >= r.cy - r.hh && py <= r.cy + r.hh);
 }
 
 int HitTest(float nx, float ny) {
-    int count;
-    const ButtonLayout *layout = CurrentLayout(&count);
-    for (int i = 0; i < count; ++i) {
-        const ButtonLayout &b = layout[i];
-        if (nx >= b.x && nx < b.x + b.w && ny >= b.y && ny < b.y + b.h) return i;
+    int W = g_window_w.load();
+    int H = g_window_h.load();
+    if (W <= 0 || H <= 0) return -1;
+    float px = nx * (float)W;
+    float py = ny * (float)H;
+    for (int i = 0; i < kLayoutCount; ++i) {
+        PixelRect r = ComputeRect(kLayout[i], W, H);
+        if (PointInRect(r, px, py)) return i;
     }
     return -1;
 }
+
+// ============================================================================
+// ボタン入力管理
+// ============================================================================
 
 void PressButton(int btn_index) {
     if (!g_state->joystick) return;
@@ -114,23 +197,16 @@ void ReleaseButton(int btn_index) {
     }
 }
 
-// ============================================================================
-// イベント (finger -> button)
-// ============================================================================
-
 bool SDLCALL EventWatcher(void *ud, SDL_Event *event) {
     if (!g_enabled.load()) return true;
     if (!g_state || !g_state->joystick) return true;
 
-    int count;
-    const ButtonLayout *layout = CurrentLayout(&count);
-
     switch (event->type) {
         case SDL_EVENT_FINGER_DOWN: {
-            int idx = HitTest(event->tfinger.x, event->tfinger.y);
-            if (idx >= 0) {
-                g_state->finger_button[event->tfinger.fingerID] = idx;
-                PressButton(layout[idx].button_index);
+            int layout_idx = HitTest(event->tfinger.x, event->tfinger.y);
+            if (layout_idx >= 0) {
+                g_state->finger_button[event->tfinger.fingerID] = layout_idx;
+                PressButton(kLayout[layout_idx].button_index);
             }
             break;
         }
@@ -138,7 +214,7 @@ bool SDLCALL EventWatcher(void *ud, SDL_Event *event) {
         case SDL_EVENT_FINGER_CANCELED: {
             auto it = g_state->finger_button.find(event->tfinger.fingerID);
             if (it != g_state->finger_button.end()) {
-                ReleaseButton(layout[it->second].button_index);
+                ReleaseButton(kLayout[it->second].button_index);
                 g_state->finger_button.erase(it);
             }
             break;
@@ -150,7 +226,178 @@ bool SDLCALL EventWatcher(void *ud, SDL_Event *event) {
 }
 
 // ============================================================================
-// SDL_Renderer 経路の描画
+// 共通三角形バッファ
+// ============================================================================
+// 内部の vertex フォーマット (xy + uint8 RGBA)。SDL は float color、GL は
+// uint8 normalize なので、出力時に変換する。
+
+struct Vert {
+    float x, y;
+    uint8_t r, g, b, a;
+};
+
+ColorRGBA ApplyAlpha(ColorRGBA c, uint8_t alpha_scale) {
+    int a = (int)c.a * (int)alpha_scale / 255;
+    return { c.r, c.g, c.b, (uint8_t)a };
+}
+
+ColorRGBA Lighten(ColorRGBA c) {
+    // 押下時用に白へ 50% 寄せる。色ごとに「明るくなった感」が出る。
+    return {
+        (uint8_t)((c.r + 255) / 2),
+        (uint8_t)((c.g + 255) / 2),
+        (uint8_t)((c.b + 255) / 2),
+        c.a,
+    };
+}
+
+inline void PushTri(std::vector<Vert> &out,
+                    float x0, float y0, float x1, float y1, float x2, float y2,
+                    ColorRGBA c) {
+    out.push_back({ x0, y0, c.r, c.g, c.b, c.a });
+    out.push_back({ x1, y1, c.r, c.g, c.b, c.a });
+    out.push_back({ x2, y2, c.r, c.g, c.b, c.a });
+}
+
+// 円 (triangle fan を三角形リスト化)
+void AppendCircle(std::vector<Vert> &out,
+                  float cx, float cy, float radius,
+                  ColorRGBA color, int segments) {
+    float prev_x = cx + radius;
+    float prev_y = cy;
+    for (int i = 1; i <= segments; ++i) {
+        float angle = (float)i / (float)segments * 2.0f * (float)M_PI;
+        float ex = cx + radius * cosf(angle);
+        float ey = cy + radius * sinf(angle);
+        PushTri(out, cx, cy, prev_x, prev_y, ex, ey, color);
+        prev_x = ex; prev_y = ey;
+    }
+}
+
+// 方向三角形 (D-pad 矢印)
+void AppendArrow(std::vector<Vert> &out,
+                 float cx, float cy, float size,
+                 ColorRGBA color, int dir) {
+    // tip = 先端、l/r = 底辺の左右。dir = 0:up / 1:right / 2:down / 3:left
+    float forward  = size * 0.85f;
+    float backward = size * 0.50f;
+    float halfBase = size * 0.85f;
+    float tip_x, tip_y, lx, ly, rx, ry;
+    switch (dir) {
+        case 0:  // up
+            tip_x = cx;            tip_y = cy - forward;
+            lx    = cx - halfBase; ly    = cy + backward;
+            rx    = cx + halfBase; ry    = cy + backward;
+            break;
+        case 1:  // right
+            tip_x = cx + forward;  tip_y = cy;
+            lx    = cx - backward; ly    = cy - halfBase;
+            rx    = cx - backward; ry    = cy + halfBase;
+            break;
+        case 2:  // down
+            tip_x = cx;            tip_y = cy + forward;
+            lx    = cx + halfBase; ly    = cy - backward;
+            rx    = cx - halfBase; ry    = cy - backward;
+            break;
+        case 3:  // left
+            tip_x = cx - forward;  tip_y = cy;
+            lx    = cx + backward; ly    = cy + halfBase;
+            rx    = cx + backward; ry    = cy - halfBase;
+            break;
+        default:
+            return;
+    }
+    PushTri(out, tip_x, tip_y, lx, ly, rx, ry, color);
+}
+
+// 角丸矩形 (中心 (cx,cy)、半幅 hw、半高 hh、角丸半径 r)。
+// 9 領域分解: 中央矩形 + 上下左右の帯 + 4 隅の扇形。
+void AppendRoundedRect(std::vector<Vert> &out,
+                       float cx, float cy, float hw, float hh, float r,
+                       ColorRGBA color, int corner_segs) {
+    if (r > hw) r = hw;
+    if (r > hh) r = hh;
+
+    float L  = cx - hw, T  = cy - hh, R  = cx + hw, B  = cy + hh;
+    float iL = L + r,   iT = T + r,   iR = R - r,   iB = B - r;
+
+    // 中央矩形
+    PushTri(out, iL, iT, iR, iT, iR, iB, color);
+    PushTri(out, iL, iT, iR, iB, iL, iB, color);
+    // 上下左右の帯
+    PushTri(out, iL, T,  iR, T,  iR, iT, color);
+    PushTri(out, iL, T,  iR, iT, iL, iT, color);
+    PushTri(out, iL, iB, iR, iB, iR, B,  color);
+    PushTri(out, iL, iB, iR, B,  iL, B,  color);
+    PushTri(out, L,  iT, iL, iT, iL, iB, color);
+    PushTri(out, L,  iT, iL, iB, L,  iB, color);
+    PushTri(out, iR, iT, R,  iT, R,  iB, color);
+    PushTri(out, iR, iT, R,  iB, iR, iB, color);
+
+    // 4 隅の扇形 (90 deg fan ずつ)
+    struct CornerInfo { float ccx, ccy; float a0; };
+    CornerInfo corners[4] = {
+        { iL, iT, (float)M_PI },          // 左上
+        { iR, iT, -(float)M_PI / 2.0f },  // 右上
+        { iR, iB, 0.0f },                 // 右下
+        { iL, iB, (float)M_PI / 2.0f },   // 左下
+    };
+    for (auto &cc : corners) {
+        float prev_x = cc.ccx + r * cosf(cc.a0);
+        float prev_y = cc.ccy + r * sinf(cc.a0);
+        for (int i = 1; i <= corner_segs; ++i) {
+            float angle = cc.a0 + (float)i / (float)corner_segs * (float)M_PI / 2.0f;
+            float ex = cc.ccx + r * cosf(angle);
+            float ey = cc.ccy + r * sinf(angle);
+            PushTri(out, cc.ccx, cc.ccy, prev_x, prev_y, ex, ey, color);
+            prev_x = ex; prev_y = ey;
+        }
+    }
+}
+
+// レイアウト全体を三角形バッファに展開する。
+//   - face button: 暗縁 + 主色の二重円 (ボタン感のためのフチ)
+//   - shoulder:    暗縁 + 主色の二重角丸
+//   - dpad:        単色三角形 (フチなし、形で方向を示す)
+void BuildVertices(std::vector<Vert> &out, int w, int h, uint8_t alpha_scale) {
+    out.clear();
+
+    for (int i = 0; i < kLayoutCount; ++i) {
+        const ButtonDef &b = kLayout[i];
+        PixelRect rect = ComputeRect(b, w, h);
+        bool pressed = g_state->button_press_count[b.button_index] > 0;
+        ColorRGBA base    = ApplyAlpha(pressed ? Lighten(b.color) : b.color, alpha_scale);
+        ColorRGBA outline = ApplyAlpha(kColOutline, alpha_scale);
+
+        switch (b.shape) {
+            case SHAPE_FACE: {
+                float radius = rect.hw;
+                AppendCircle(out, rect.cx, rect.cy, radius,            outline, 36);
+                AppendCircle(out, rect.cx, rect.cy, radius * 0.86f,    base,    32);
+                break;
+            }
+            case SHAPE_SHOULDER: {
+                float corner = (rect.hh < rect.hw ? rect.hh : rect.hw) * 0.85f;
+                AppendRoundedRect(out, rect.cx, rect.cy,
+                                  rect.hw, rect.hh, corner,
+                                  outline, 8);
+                float inset = rect.hh * 0.20f;
+                AppendRoundedRect(out, rect.cx, rect.cy,
+                                  rect.hw - inset, rect.hh - inset,
+                                  corner * 0.85f,
+                                  base, 8);
+                break;
+            }
+            case SHAPE_DPAD: {
+                AppendArrow(out, rect.cx, rect.cy, rect.hw, base, b.dpad_dir);
+                break;
+            }
+        }
+    }
+}
+
+// ============================================================================
+// SDL_Renderer 経路
 // ============================================================================
 
 void RenderSDL(SDL_Renderer *renderer, void *ud) {
@@ -161,34 +408,43 @@ void RenderSDL(SDL_Renderer *renderer, void *ud) {
     int w = 0, h = 0;
     SDL_GetCurrentRenderOutputSize(renderer, &w, &h);
     if (w <= 0 || h <= 0) return;
+    g_window_w.store(w);
+    g_window_h.store(h);
 
-    int count;
-    const ButtonLayout *layout = CurrentLayout(&count);
-    Uint8 alpha = (Uint8)(g_opacity.load() * 255.0f);
+    uint8_t alpha_scale = (uint8_t)(g_opacity.load() * 255.0f);
+
+    thread_local std::vector<Vert> verts;
+    BuildVertices(verts, w, h, alpha_scale);
+    if (verts.empty()) return;
+
+    thread_local std::vector<SDL_Vertex> sdl_verts;
+    sdl_verts.resize(verts.size());
+    for (size_t i = 0; i < verts.size(); ++i) {
+        const Vert &v = verts[i];
+        SDL_Vertex &sv = sdl_verts[i];
+        sv.position.x = v.x;
+        sv.position.y = v.y;
+        sv.color.r = (float)v.r / 255.0f;
+        sv.color.g = (float)v.g / 255.0f;
+        sv.color.b = (float)v.b / 255.0f;
+        sv.color.a = (float)v.a / 255.0f;
+        sv.tex_coord.x = 0.0f;
+        sv.tex_coord.y = 0.0f;
+    }
 
     SDL_BlendMode old_blend = SDL_BLENDMODE_NONE;
     SDL_GetRenderDrawBlendMode(renderer, &old_blend);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
-    for (int i = 0; i < count; ++i) {
-        const ButtonLayout &b = layout[i];
-        SDL_FRect rect = { b.x * w, b.y * h, b.w * w, b.h * h };
-        bool pressed = g_state->button_press_count[b.button_index] > 0;
-        if (pressed) {
-            SDL_SetRenderDrawColor(renderer, 255, 220, 80, alpha);
-        } else {
-            SDL_SetRenderDrawColor(renderer, 50, 50, 50, alpha);
-        }
-        SDL_RenderFillRect(renderer, &rect);
-        SDL_SetRenderDrawColor(renderer, 220, 220, 220, alpha);
-        SDL_RenderRect(renderer, &rect);
-    }
+    SDL_RenderGeometry(renderer, nullptr,
+                       sdl_verts.data(), (int)sdl_verts.size(),
+                       nullptr, 0);
 
     SDL_SetRenderDrawBlendMode(renderer, old_blend);
 }
 
 // ============================================================================
-// OpenGL ES 経路の描画 (shader + VBO の lazy init、毎フレーム同じ resource を使用)
+// OpenGL ES 経路
 // ============================================================================
 
 struct GLState {
@@ -277,11 +533,13 @@ void ShutdownGL() {
     g_gl = GLState{};
 }
 
+// VBO に流す pack。Vert と同じだが「ここは 12 バイト固定」と明示するために別 typedef。
 struct VertexGL {
     float    x, y;
     uint8_t  r, g, b, a;
 };
 static_assert(sizeof(VertexGL) == 12, "VertexGL packing");
+static_assert(sizeof(Vert) == sizeof(VertexGL), "Vert and VertexGL must be ABI-compatible");
 
 void RenderGL(void *ud) {
     if (!g_enabled.load()) return;
@@ -292,13 +550,19 @@ void RenderGL(void *ud) {
     glGetIntegerv(GL_VIEWPORT, vp);
     int w = vp[2], h = vp[3];
     if (w <= 0 || h <= 0) return;
+    g_window_w.store(w);
+    g_window_h.store(h);
 
-    // 既存の GL state を退避
-    GLint  prev_program = 0;       glGetIntegerv(GL_CURRENT_PROGRAM, &prev_program);
-    GLint  prev_vbo     = 0;       glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &prev_vbo);
+    uint8_t alpha_scale = (uint8_t)(g_opacity.load() * 255.0f);
+
+    thread_local std::vector<Vert> verts;
+    BuildVertices(verts, w, h, alpha_scale);
+    if (verts.empty()) return;
+
+    // 既存 GL state を退避
+    GLint prev_program = 0;       glGetIntegerv(GL_CURRENT_PROGRAM, &prev_program);
+    GLint prev_vbo     = 0;       glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &prev_vbo);
     GLboolean prev_blend = glIsEnabled(GL_BLEND);
-    GLint  prev_blend_src = 0;     glGetIntegerv(GL_BLEND_SRC_ALPHA, &prev_blend_src);
-    GLint  prev_blend_dst = 0;     glGetIntegerv(GL_BLEND_DST_ALPHA, &prev_blend_dst);
     GLboolean prev_depth = glIsEnabled(GL_DEPTH_TEST);
     GLboolean prev_cull  = glIsEnabled(GL_CULL_FACE);
 
@@ -307,34 +571,12 @@ void RenderGL(void *ud) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    int count;
-    const ButtonLayout *layout = CurrentLayout(&count);
-    uint8_t alpha = (uint8_t)(g_opacity.load() * 255.0f);
-
-    // 6 vertices per quad (2 triangles), 8 buttons = 48 vertices, ボタンは枠線も
-    // 出すので fill + outline で 12 quads 程度。最初は fill のみ。
-    VertexGL verts[kLayoutBottomCount * 6];
-    int vcount = 0;
-    for (int i = 0; i < count; ++i) {
-        const ButtonLayout &b = layout[i];
-        bool pressed = g_state->button_press_count[b.button_index] > 0;
-        uint8_t r = pressed ? 255 : 50;
-        uint8_t g = pressed ? 220 : 50;
-        uint8_t bb = pressed ?  80 : 50;
-        float x0 = b.x * w, y0 = b.y * h;
-        float x1 = (b.x + b.w) * w, y1 = (b.y + b.h) * h;
-        verts[vcount++] = { x0, y0, r, g, bb, alpha };
-        verts[vcount++] = { x1, y0, r, g, bb, alpha };
-        verts[vcount++] = { x1, y1, r, g, bb, alpha };
-        verts[vcount++] = { x0, y0, r, g, bb, alpha };
-        verts[vcount++] = { x1, y1, r, g, bb, alpha };
-        verts[vcount++] = { x0, y1, r, g, bb, alpha };
-    }
-
     glUseProgram(g_gl.program);
     glUniform2f(g_gl.loc_screenSize, (float)w, (float)h);
     glBindBuffer(GL_ARRAY_BUFFER, g_gl.vbo);
-    glBufferData(GL_ARRAY_BUFFER, vcount * (GLsizeiptr)sizeof(VertexGL), verts, GL_STREAM_DRAW);
+    glBufferData(GL_ARRAY_BUFFER,
+                 (GLsizeiptr)(verts.size() * sizeof(VertexGL)),
+                 verts.data(), GL_STREAM_DRAW);
 
     glEnableVertexAttribArray(g_gl.attr_pos);
     glVertexAttribPointer(g_gl.attr_pos, 2, GL_FLOAT, GL_FALSE, sizeof(VertexGL),
@@ -343,12 +585,12 @@ void RenderGL(void *ud) {
     glVertexAttribPointer(g_gl.attr_color, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(VertexGL),
         (const void*)offsetof(VertexGL, r));
 
-    glDrawArrays(GL_TRIANGLES, 0, vcount);
+    glDrawArrays(GL_TRIANGLES, 0, (GLsizei)verts.size());
 
     glDisableVertexAttribArray(g_gl.attr_pos);
     glDisableVertexAttribArray(g_gl.attr_color);
 
-    // GL state を復帰 (他の描画コードが干渉しないように)
+    // 復帰
     glBindBuffer(GL_ARRAY_BUFFER, prev_vbo);
     glUseProgram(prev_program);
     if (!prev_blend) glDisable(GL_BLEND);
@@ -357,7 +599,7 @@ void RenderGL(void *ud) {
 }
 
 // ============================================================================
-// SDL_AttachVirtualJoystick
+// 仮想ジョイスティック attach
 // ============================================================================
 
 bool AttachVirtualJoystick() {
@@ -375,6 +617,10 @@ bool AttachVirtualJoystick() {
     desc.button_mask = 0u
         | (1u << SDL_GAMEPAD_BUTTON_SOUTH)
         | (1u << SDL_GAMEPAD_BUTTON_EAST)
+        | (1u << SDL_GAMEPAD_BUTTON_WEST)
+        | (1u << SDL_GAMEPAD_BUTTON_NORTH)
+        | (1u << SDL_GAMEPAD_BUTTON_LEFT_SHOULDER)
+        | (1u << SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER)
         | (1u << SDL_GAMEPAD_BUTTON_DPAD_UP)
         | (1u << SDL_GAMEPAD_BUTTON_DPAD_DOWN)
         | (1u << SDL_GAMEPAD_BUTTON_DPAD_LEFT)
@@ -395,11 +641,12 @@ void Init() {
     VPAD_LOG("Init() called");
     g_state = new State();
     bool attached = AttachVirtualJoystick();
-    VPAD_LOG("AttachVirtualJoystick = %d (id=%u)", attached, (unsigned)g_state->joystick_id);
+    VPAD_LOG("AttachVirtualJoystick = %d (id=%u, nbuttons=%d)",
+             attached, (unsigned)g_state->joystick_id, kVirtualButtonCount);
     SDL_AddEventWatch(EventWatcher, nullptr);
     TVPRegisterPostRenderCallback(RenderSDL, nullptr);
     TVPRegisterPostRenderCallbackGL(RenderGL, nullptr);
-    VPAD_LOG("post-render callbacks registered (sdl=%p gl=%p)", (void*)&RenderSDL, (void*)&RenderGL);
+    VPAD_LOG("post-render callbacks registered");
 }
 
 void Shutdown() {
@@ -420,9 +667,7 @@ void Shutdown() {
     g_state = nullptr;
 }
 
-void SetEnabled(bool enabled) {
-    g_enabled.store(enabled);
-}
+void SetEnabled(bool enabled) { g_enabled.store(enabled); }
 
 void SetOpacity(float opacity) {
     if (opacity < 0.0f) opacity = 0.0f;
@@ -430,8 +675,6 @@ void SetOpacity(float opacity) {
     g_opacity.store(opacity);
 }
 
-void SetPreset(int preset) {
-    g_preset.store(preset);
-}
+void SetPreset(int preset) { g_preset.store(preset); }
 
 } // namespace virtualpad
