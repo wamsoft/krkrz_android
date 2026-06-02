@@ -1,7 +1,9 @@
 package jp.wamsoft.krkrz;
 
+import android.content.Context;
 import android.content.Intent;
 import android.content.res.AssetManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -14,6 +16,7 @@ import androidx.drawerlayout.widget.DrawerLayout;
 import com.google.android.material.navigation.NavigationView;
 
 import org.libsdl.app.SDLActivity;
+import org.libsdl.app.SDLSurface;
 
 import jp.wamsoft.krkrz.playgames.PlayGamesBridge;
 import jp.wamsoft.krkrz.ui.LicenseActivity;
@@ -47,6 +50,27 @@ public class KrkrzActivity extends SDLActivity {
     }
 
     @Override
+    protected SDLSurface createSDLSurface(Context context) {
+        SDLSurface surface = super.createSDLSurface(context);
+        configureSdlSurfaceZOrder(surface);
+        return surface;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        ensureSideMenuLayer();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            ensureSideMenuLayer();
+        }
+    }
+
+    @Override
     public void onBackPressed() {
         if (drawerLayout != null && drawerLayout.isDrawerOpen(GravityCompat.START)) {
             drawerLayout.closeDrawer(GravityCompat.START);
@@ -72,6 +96,7 @@ public class KrkrzActivity extends SDLActivity {
         decorContent.addView(drawer);
 
         NavigationView nav = drawer.findViewById(R.id.nav_view);
+        configureSideMenuLayer(drawer, nav);
         nav.setNavigationItemSelectedListener(item -> {
             int id = item.getItemId();
             Intent intent = null;
@@ -88,6 +113,63 @@ public class KrkrzActivity extends SDLActivity {
         });
 
         this.drawerLayout = drawer;
+    }
+
+    private void configureSdlSurfaceZOrder(SDLSurface surface) {
+        if (surface == null) return;
+
+        // SurfaceView は通常の View 階層とは別 Surface なので、明示的に背面側へ固定する。
+        surface.setZOrderOnTop(false);
+        surface.setZOrderMediaOverlay(false);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            surface.setElevation(0f);
+            surface.setTranslationZ(0f);
+        }
+    }
+
+    private void configureSideMenuLayer(DrawerLayout drawer, View drawerView) {
+        drawer.setDrawerElevation(dp(16f));
+        drawerView.setClickable(true);
+        drawerView.setFocusable(true);
+
+        drawer.addDrawerListener(new DrawerLayout.SimpleDrawerListener() {
+            @Override
+            public void onDrawerSlide(View drawerView, float slideOffset) {
+                keepSideMenuAboveSurface(drawer, drawerView);
+            }
+
+            @Override
+            public void onDrawerOpened(View drawerView) {
+                keepSideMenuAboveSurface(drawer, drawerView);
+            }
+        });
+
+        keepSideMenuAboveSurface(drawer, drawerView);
+        drawer.post(() -> keepSideMenuAboveSurface(drawer, drawerView));
+    }
+
+    private void ensureSideMenuLayer() {
+        if (drawerLayout == null) return;
+
+        View drawerView = drawerLayout.findViewById(R.id.nav_view);
+        if (drawerView != null) {
+            drawerLayout.post(() -> keepSideMenuAboveSurface(drawerLayout, drawerView));
+        }
+    }
+
+    private void keepSideMenuAboveSurface(DrawerLayout drawer, View drawerView) {
+        configureSdlSurfaceZOrder(mSurface);
+        drawer.bringChildToFront(drawerView);
+        drawerView.bringToFront();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            drawerView.setElevation(dp(24f));
+            drawerView.setTranslationZ(dp(24f));
+        }
+        drawer.invalidate();
+    }
+
+    private float dp(float value) {
+        return value * getResources().getDisplayMetrics().density;
     }
 
     @Override
