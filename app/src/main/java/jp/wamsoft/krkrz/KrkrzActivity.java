@@ -31,11 +31,31 @@ import jp.wamsoft.krkrz.virtualpad.VirtualPadPrefs;
  */
 public class KrkrzActivity extends SDLActivity {
     private native void setAssetManager(AssetManager assetManager);
+    private native void setAssetCacheDir(String path);
 
     private DrawerLayout drawerLayout;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // BootstrapActivity が `<filesDir>/<ASSET_CACHE_SUBDIR>/` に *.xp3 を
+        // コピー済みのはず。そのパスを native (stdapp.cpp::InitPath) に伝える。
+        // super.onCreate が走ると SDLActivity が SDL スレッドを開始して
+        // native main → InitPath を呼ぶので、それまでに setAssetCacheDir を
+        // 終えておく必要がある。super 前は SDLActivity がまだ libSDL3 / libkrkrz
+        // を load していないため、依存順 (SDL3 → krkrz) に手動で先 load する。
+        // どちらも System.loadLibrary は idempotent なので super 側で重複呼出
+        // しても問題ない。
+        System.loadLibrary("SDL3");
+        System.loadLibrary("krkrz");
+
+        // BootstrapActivity 経由なら cache が populated 済み。直接起動 (= cache 未生成)
+        // のときは何も渡さず、engine 側のレガシー AssetManager 経路にフォールバック
+        // させる。
+        java.io.File cacheDir = new java.io.File(getFilesDir(), BootstrapActivity.ASSET_CACHE_SUBDIR);
+        if (cacheDir.isDirectory()) {
+            setAssetCacheDir(cacheDir.getAbsolutePath() + "/");
+        }
+
         super.onCreate(savedInstanceState);
 
         installSideMenuOverlay();

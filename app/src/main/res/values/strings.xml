@@ -41,4 +41,9 @@
 
     <!-- License (placeholder for when KrkrZ returns empty) -->
     <string name="license_placeholder">Could not retrieve license information from KrkrZ.</string>
+
+    <!-- Bootstrap: copying assets to internal storage on first launch / version change -->
+    <string name="bootstrap_title">Preparing data…</string>
+    <string name="bootstrap_status_initial">Checking cache</string>
+    <string name="bootstrap_status_fmt">%1$s  (%2$d / %3$d)</string>
 </resources>

@@ -1,0 +1,232 @@
+package jp.wamsoft.krkrz;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
+import android.content.res.AssetManager;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * KrkrZ 本体起動前に走るブートストラップ Activity。
+ *
+ * Android の AssetManager 経由で xp3 アーカイブを読むのは遅い (圧縮されてないが
+ * AAsset_read が seek 系で重い + アーカイブ全体を一度メモリに展開する実装の都合)。
+ * このため起動時に一度 assets/ 内の *.xp3 (再帰) を内部ストレージ
+ * `<filesDir>/{@link #ASSET_CACHE_SUBDIR}/` にコピーしておき、
+ * 以後は通常のファイルシステム経由でアクセスする。
+ *
+ * 再コピー判定は APK の (versionCode, lastUpdateTime) を marker に保存して比較する
+ * 一括判定方式。これらが一致すれば「APK 更新されてない」とみなしてスキップする。
+ * mismatch 時は cache ディレクトリを丸ごとリセットしてから全コピーする。
+ *
+ * 完了後は {@link KrkrzActivity} を startActivity して finish() する。
+ * KrkrzActivity 側でも同じ `<filesDir>/{@link #ASSET_CACHE_SUBDIR}/` を組み立てて
+ * native (stdapp.cpp::InitPath) に渡す (経路: setAssetCacheDir JNI)。
+ */
+public class BootstrapActivity extends Activity {
+
+    private static final String TAG = "BootstrapActivity";
+
+    /** {@link android.content.Context#getFilesDir()} 配下に作る cache サブディレクトリ名。 */
+    public static final String ASSET_CACHE_SUBDIR = "assets";
+
+    private static final String PREFS_NAME = "bootstrap";
+    private static final String KEY_VERSION_CODE = "apk_version_code";
+    private static final String KEY_LAST_UPDATE_TIME = "apk_last_update_time";
+    /** 1 回の I/O バッファ。xp3 は数百 MB あるので大きめに取る。 */
+    private static final int COPY_BUFFER_BYTES = 1 << 20; // 1 MiB
+
+    private TextView statusText;
+    private ProgressBar progressBar;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.bootstrap);
+
+        statusText = findViewById(R.id.bootstrap_status);
+        progressBar = findViewById(R.id.bootstrap_progress);
+
+        new Thread(this::runCopyThenLaunch, "BootstrapCopy").start();
+    }
+
+    private void runCopyThenLaunch() {
+        try {
+            ensureAssetsCached();
+        } catch (Exception e) {
+            Log.e(TAG, "asset cache failed", e);
+            // 失敗しても KrkrzActivity 起動は試みる (engine が AssetManager に
+            // フォールバックする経路を持っているため、最悪 legacy ルートで動く)。
+        }
+        mainHandler.post(this::launchMainActivity);
+    }
+
+    private void launchMainActivity() {
+        Intent intent = new Intent(this, KrkrzActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        startActivity(intent);
+        finish();
+    }
+
+    // ----- 以下、コピー処理本体 -----
+
+    private void ensureAssetsCached() throws IOException {
+        File cacheRoot = new File(getFilesDir(), ASSET_CACHE_SUBDIR);
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+
+        long curVersion = currentVersionCode();
+        long curUpdate = currentLastUpdateTime();
+        long prevVersion = prefs.getLong(KEY_VERSION_CODE, -1L);
+        long prevUpdate = prefs.getLong(KEY_LAST_UPDATE_TIME, -1L);
+
+        boolean upToDate = cacheRoot.isDirectory()
+                && curVersion == prevVersion
+                && curUpdate == prevUpdate;
+
+        if (upToDate) {
+            Log.i(TAG, "asset cache up to date (versionCode=" + curVersion
+                    + ", lastUpdateTime=" + curUpdate + ")");
+            postStatus("Ready", 1, 1);
+            return;
+        }
+
+        Log.i(TAG, "asset cache stale; rebuilding (cur=" + curVersion + "/" + curUpdate
+                + " prev=" + prevVersion + "/" + prevUpdate + ")");
+        postStatus("Preparing cache...", 0, 1);
+        deleteRecursively(cacheRoot);
+        if (!cacheRoot.mkdirs() && !cacheRoot.isDirectory()) {
+            throw new IOException("failed to create cache dir: " + cacheRoot);
+        }
+
+        // 対象ファイルを列挙: (1) 任意階層の *.xp3、(2) data/ 配下の全ファイル。
+        // 小物 (config.cf / fonts / SysInitScript.tjs / messages*.json 等) は engine の
+        // `resource://` 経由で AssetManager 直アクセスのままなのでコピー対象外。
+        AssetManager am = getAssets();
+        List<String> targets = new ArrayList<>();
+        collectCacheTargets(am, "", targets);
+        Log.i(TAG, "cache targets: " + targets.size());
+
+        int total = targets.size();
+        for (int i = 0; i < total; i++) {
+            String rel = targets.get(i);
+            postStatus(rel, i, total);
+            copyAsset(am, rel, new File(cacheRoot, rel));
+        }
+        postStatus("Done", total, total);
+
+        prefs.edit()
+                .putLong(KEY_VERSION_CODE, curVersion)
+                .putLong(KEY_LAST_UPDATE_TIME, curUpdate)
+                .apply();
+    }
+
+    /**
+     * assets 配下を再帰的に走査してキャッシュ対象を集める。relative path (assets root 起点)。
+     * 採用ルール:
+     *  - 任意階層の {@code *.xp3}
+     *  - {@code data/} 配下の全ファイル (video/ 等)
+     *
+     * data/ 配下を丸ごと拾うのは、KrkrZ engine の autopath や Video 再生が
+     * project path 起点 (= cache dir) から直接 file を引きに来るため。
+     * 例えば {@code data/video/intro.mp4} は engine が
+     * {@code <cache>/data/video/intro.mp4} として open しに行く。
+     *
+     * フォルダ判定は {@link AssetManager#list(String)} の戻りが空かどうかで行う
+     * (Android の AssetManager にはディレクトリ/ファイルの直接判別 API がない)。
+     */
+    private void collectCacheTargets(AssetManager am, String dir, List<String> out) throws IOException {
+        String[] entries = am.list(dir);
+        if (entries == null) return;
+        for (String entry : entries) {
+            String rel = dir.isEmpty() ? entry : dir + "/" + entry;
+            String[] sub = am.list(rel);
+            boolean isDir = (sub != null && sub.length > 0);
+            if (isDir) {
+                collectCacheTargets(am, rel, out);
+            } else {
+                if (entry.endsWith(".xp3") || isUnderDataFolder(rel)) {
+                    out.add(rel);
+                }
+            }
+        }
+    }
+
+    /** {@code data/...} 形式 (assets root 直下の data/ 配下) のとき true。 */
+    private static boolean isUnderDataFolder(String rel) {
+        return rel.startsWith("data/") || rel.equals("data");
+    }
+
+    private void copyAsset(AssetManager am, String relPath, File dst) throws IOException {
+        File parent = dst.getParentFile();
+        if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
+            throw new IOException("failed to create parent dir: " + parent);
+        }
+        try (InputStream in = am.open(relPath, AssetManager.ACCESS_STREAMING);
+             FileOutputStream out = new FileOutputStream(dst)) {
+            byte[] buf = new byte[COPY_BUFFER_BYTES];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n);
+            }
+        }
+    }
+
+    private void deleteRecursively(File path) {
+        if (path == null || !path.exists()) return;
+        if (path.isDirectory()) {
+            File[] children = path.listFiles();
+            if (children != null) {
+                for (File c : children) deleteRecursively(c);
+            }
+        }
+        // best-effort: delete 失敗しても次の mkdirs で上書きされるので致命ではない
+        //noinspection ResultOfMethodCallIgnored
+        path.delete();
+    }
+
+    private long currentVersionCode() {
+        try {
+            PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return android.os.Build.VERSION.SDK_INT >= 28
+                    ? info.getLongVersionCode()
+                    : info.versionCode;
+        } catch (Exception e) {
+            return -1L;
+        }
+    }
+
+    private long currentLastUpdateTime() {
+        try {
+            PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return info.lastUpdateTime;
+        } catch (Exception e) {
+            return -1L;
+        }
+    }
+
+    private void postStatus(String label, int done, int total) {
+        mainHandler.post(() -> {
+            if (statusText != null) {
+                statusText.setText(getString(R.string.bootstrap_status_fmt, label, done, total));
+            }
+            if (progressBar != null) {
+                progressBar.setMax(Math.max(1, total));
+                progressBar.setProgress(done);
+            }
+        });
+    }
+}

@@ -49,11 +49,15 @@
         android:name="com.google.android.gms.version"
         android:value="@integer/google_play_services_version" />
 
+    <!--
+        BootstrapActivity をランチャーにして、assets/*.xp3 を `<filesDir>/assets/`
+        にコピーしてから KrkrzActivity を起動する。USB_DEVICE_ATTACHED の
+        intent もこちらに向けて、ガジェット接続経由の起動でもコピー処理を通す。
+    -->
     <activity
-        android:name="jp.wamsoft.krkrz.KrkrzActivity"
+        android:name="jp.wamsoft.krkrz.BootstrapActivity"
         android:exported="true"
-        android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
-        android:preferMinimalPostProcessing="true">
+        android:theme="@style/Theme.Krkrz">
         <intent-filter>
             <action android:name="android.intent.action.MAIN" />
 
@@ -63,6 +67,12 @@
             <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
         </intent-filter>
     </activity>
+
+    <activity
+        android:name="jp.wamsoft.krkrz.KrkrzActivity"
+        android:exported="false"
+        android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+        android:preferMinimalPostProcessing="true" />
 
     <activity
         android:name="jp.wamsoft.krkrz.ui.SettingsActivity"

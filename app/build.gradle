@@ -101,7 +101,8 @@ android {
                           "-DCMAKE_TOOLCHAIN_FILE=${System.getenv('VCPKG_ROOT')}/scripts/buildsystems/vcpkg.cmake",
                           "-DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=${android.ndkDirectory}/build/cmake/android.toolchain.cmake",
                           "-DANDROID_NDK_HOME=${android.ndkDirectory}",
-                          "-DMYAPP_CMAKE_FILE=${layout.buildDirectory.file('generated/cmake/myapp.cmake').get().asFile.absolutePath.replace('\\', '/')}"
+                          "-DMYAPP_CMAKE_FILE=${layout.buildDirectory.file('generated/cmake/myapp.cmake').get().asFile.absolutePath.replace('\\', '/')}",
+                          '-DKRKRZ_DRAW_STATS=ON'
                 abiFilters 'arm64-v8a', 'x86_64'
             }
         }
