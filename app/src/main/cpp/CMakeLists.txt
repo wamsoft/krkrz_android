@@ -94,6 +94,9 @@ option(KRKRZ_ENABLE_DAP "enable VSCode Debug Adapter Protocol server" OFF)
 option(KRKRZ_USE_LOGCORE "enable LogCore" OFF)
 option(KRKRZ_REPL "enable interactive TJS REPL" OFF)
 option(KRKRZ_BUILD_TESTS "build SIMD parity tests" OFF)
+# Elements (汎用ダイアログ機構 / cycfi::elements + thorvg + elements_modal)
+# Android では未使用なので OFF にして依存ごと除外する。
+option(KRKRZ_USE_ELEMENTS "embed Elements dialog UI" OFF)
 add_subdirectory(${KRKRZ_DIR} ${CMAKE_CURRENT_BINARY_DIR}/krkrz)
 
 # ----------------------------------------------------
