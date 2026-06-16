@@ -119,7 +119,7 @@ constexpr int kLayoutCount = sizeof(kLayout) / sizeof(kLayout[0]);
 // 状態
 // ============================================================================
 
-std::atomic<bool>  g_enabled{true};
+std::atomic<bool>  g_enabled{false};
 std::atomic<float> g_opacity{0.55f};
 std::atomic<int>   g_preset{0};
 // HitTest で normalize → pixel 変換するために最新の描画サイズをキャッシュ。
@@ -197,32 +197,72 @@ void ReleaseButton(int btn_index) {
     }
 }
 
-bool SDLCALL EventWatcher(void *ud, SDL_Event *event) {
-    if (!g_enabled.load()) return true;
-    if (!g_state || !g_state->joystick) return true;
+// ============================================================================
+// イベントフィルタ
+// ============================================================================
+// 観測だけでは不十分 (engine が同じ touch を Layer.onMouseDown 等に届けてしまう)
+// ため、SDL_SetEventFilter で「捨てる」ことができる側に乗せる。enabled 時は
+// 画面上の全 touch 系イベントを drop し、ヒットしたボタンだけ仮想ジョイスティック
+// に反映する。SDL は touch を mouse としても合成発火するので
+// (SDL_HINT_TOUCH_MOUSE_EVENTS=1)、SDL_TOUCH_MOUSEID の mouse も同様に drop。
 
-    switch (event->type) {
-        case SDL_EVENT_FINGER_DOWN: {
-            int layout_idx = HitTest(event->tfinger.x, event->tfinger.y);
-            if (layout_idx >= 0) {
-                g_state->finger_button[event->tfinger.fingerID] = layout_idx;
-                PressButton(kLayout[layout_idx].button_index);
+SDL_EventFilter g_prev_filter = nullptr;
+void           *g_prev_filter_ud = nullptr;
+
+bool SDLCALL EventFilter(void *ud, SDL_Event *event) {
+    if (g_enabled.load() && g_state && g_state->joystick) {
+        switch (event->type) {
+            case SDL_EVENT_FINGER_DOWN: {
+                int layout_idx = HitTest(event->tfinger.x, event->tfinger.y);
+                if (layout_idx >= 0) {
+                    g_state->finger_button[event->tfinger.fingerID] = layout_idx;
+                    PressButton(kLayout[layout_idx].button_index);
+                }
+                return false;
             }
-            break;
-        }
-        case SDL_EVENT_FINGER_UP:
-        case SDL_EVENT_FINGER_CANCELED: {
-            auto it = g_state->finger_button.find(event->tfinger.fingerID);
-            if (it != g_state->finger_button.end()) {
-                ReleaseButton(kLayout[it->second].button_index);
-                g_state->finger_button.erase(it);
+            case SDL_EVENT_FINGER_UP:
+            case SDL_EVENT_FINGER_CANCELED: {
+                auto it = g_state->finger_button.find(event->tfinger.fingerID);
+                if (it != g_state->finger_button.end()) {
+                    ReleaseButton(kLayout[it->second].button_index);
+                    g_state->finger_button.erase(it);
+                }
+                return false;
             }
-            break;
+            case SDL_EVENT_FINGER_MOTION:
+                return false;
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            case SDL_EVENT_MOUSE_BUTTON_UP:
+                if (event->button.which == SDL_TOUCH_MOUSEID) return false;
+                break;
+            case SDL_EVENT_MOUSE_MOTION:
+                if (event->motion.which == SDL_TOUCH_MOUSEID) return false;
+                break;
+            default:
+                break;
         }
-        default:
-            break;
+    }
+    // 自分が捨てない場合は元のフィルタにチェイン (engine 等が後で
+    // SDL_SetEventFilter する可能性は今は無いが、保険として保持する)。
+    if (g_prev_filter) {
+        return g_prev_filter(g_prev_filter_ud, event);
     }
     return true;
+}
+
+void InstallEventFilter() {
+    g_prev_filter = nullptr;
+    g_prev_filter_ud = nullptr;
+    SDL_GetEventFilter(&g_prev_filter, &g_prev_filter_ud);
+    SDL_SetEventFilter(EventFilter, nullptr);
+}
+
+void UninstallEventFilter() {
+    // SDL3 には「filter を外す」専用 API がないので、起動時に控えた前フィルタ
+    // (nullptr なら何も無し) に書き戻す。
+    SDL_SetEventFilter(g_prev_filter, g_prev_filter_ud);
+    g_prev_filter = nullptr;
+    g_prev_filter_ud = nullptr;
 }
 
 // ============================================================================
@@ -643,17 +683,17 @@ void Init() {
     bool attached = AttachVirtualJoystick();
     VPAD_LOG("AttachVirtualJoystick = %d (id=%u, nbuttons=%d)",
              attached, (unsigned)g_state->joystick_id, kVirtualButtonCount);
-    SDL_AddEventWatch(EventWatcher, nullptr);
+    InstallEventFilter();
     TVPRegisterPostRenderCallback(RenderSDL, nullptr);
     TVPRegisterPostRenderCallbackGL(RenderGL, nullptr);
-    VPAD_LOG("post-render callbacks registered");
+    VPAD_LOG("post-render callbacks + event filter registered");
 }
 
 void Shutdown() {
     if (!g_state) return;
     TVPUnregisterPostRenderCallback(RenderSDL, nullptr);
     TVPUnregisterPostRenderCallbackGL(RenderGL, nullptr);
-    SDL_RemoveEventWatch(EventWatcher, nullptr);
+    UninstallEventFilter();
     ShutdownGL();
     if (g_state->joystick) {
         SDL_CloseJoystick(g_state->joystick);

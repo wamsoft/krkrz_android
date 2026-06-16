@@ -16,7 +16,7 @@ public final class VirtualPadPrefs {
     private static final String K_ENABLED         = "enabled";
     private static final String K_TRANSLUCENT     = "translucent";
 
-    public static final boolean DEFAULT_ENABLED     = true;
+    public static final boolean DEFAULT_ENABLED     = false;
     public static final boolean DEFAULT_TRANSLUCENT = true;
 
     private static final float OPACITY_TRANSLUCENT = 0.55f;
