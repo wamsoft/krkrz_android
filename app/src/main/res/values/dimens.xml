@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 設定画面コンテンツの最大幅。これより広い画面では中央寄せして余白を取り、
+         各行が間延びしないようにする (SettingsActivity が参照)。 -->
+    <dimen name="settings_content_max_width">600dp</dimen>
+</resources>

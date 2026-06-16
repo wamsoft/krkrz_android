@@ -1,0 +1,153 @@
+// ============================================================================
+//  androidconfig - TJS 側グローバル関数のサンプル実装 (リファレンス)
+// ============================================================================
+//
+//  これは「ガワ」リポジトリに同梱する参考実装。実際の案件では startup.tjs などから
+//  この内容を取り込み、各値を案件のエンジン/システム変数 (KAG なら kag.* や Config.tjs、
+//  自前システムならその設定オブジェクト) に配線して使う。
+//
+//  ここでは動作確認できるよう、値を 1 個のグローバル辞書 KrkrzAndroidConfigStore に
+//  保持し、音量だけ WaveSoundBuffer.GlobalVolume などへ繋ぐ例を「// → 配線例」で示す。
+//  TODO: コメントの配線例を案件の実値に差し替えること。
+//
+//  契約の詳細は manual.tjs を参照。
+// ============================================================================
+
+// ---- 設定値の保管庫 (案件ではここを実際の設定変数の getter/setter に置き換える) ----
+if(typeof global.KrkrzAndroidConfigStore == "undefined") {
+    global.KrkrzAndroidConfigStore = %[
+        // システム
+        "screenEffect"        => 1,
+        "systemEffect"        => 1,
+        "windowOpacity"       => 100,
+        // メッセージ
+        "messageSpeed"        => 50,
+        "autoModeSpeed"       => 50,
+        "autoReleaseOnChoice" => 1,
+        "autoWaitVoice"       => 1,
+        "skipMode"            => 0,    // 0=既読のみ / 1=すべて
+        "skipReleaseOnChoice" => 1,
+        "skipReadText"        => 0,
+        // 音量に付随する ON/OFF
+        "lowerBgmOnVoice"     => 1,
+        "lowerSeOnVoice"      => 0,
+        // 言語
+        "mainTextLang"        => "ja",
+        "subTextLang"         => "en"
+    ];
+}
+
+// ---- 音量の保管庫 (0-100)。案件では実際の音量に置き換える ----
+if(typeof global.KrkrzAndroidVolumeStore == "undefined") {
+    global.KrkrzAndroidVolumeStore = %[
+        "master"      => 100,
+        "bgm"         => 80,
+        "se"          => 80,
+        "systemSe"    => 80,
+        "voice"       => 90,
+        "systemVoice" => 90
+        // "charVoice:主人公" => 90, ... のように動的に増やせる
+    ];
+}
+
+// キャラ別ボイス名 (システム側から渡される想定)。改行区切り文字列で返す。
+if(typeof global.KrkrzAndroidCharVoiceNames == "undefined") {
+    // 例: 3 キャラ。空文字なら「キャラ別ボイス」セクションは出ない。
+    global.KrkrzAndroidCharVoiceNames = "";
+    // global.KrkrzAndroidCharVoiceNames = "主人公\nヒロインA\nヒロインB";
+}
+
+// ----------------------------------------------------------------------------
+//  KrkrzAndroidGetConfig() -> Dictionary
+// ----------------------------------------------------------------------------
+function KrkrzAndroidGetConfig()
+{
+    // 保管庫を複製して返す (UI 側へ渡すスナップショット)。
+    // 辞書の assign は直呼びできず (Dictionary.assign incontextof d)(...) の形で呼ぶ。
+    var d = %[];
+    (Dictionary.assign incontextof d)(global.KrkrzAndroidConfigStore);
+
+    // 言語の選択肢一覧 (値<TAB>表示名、改行区切り)。
+    d["mainTextLangList"] = "ja\t日本語\nen\tEnglish\nzh-CN\t简体中文\nzh-TW\t繁體中文";
+    d["subTextLangList"]  = "ja\t日本語\nen\tEnglish\nzh-CN\t简体中文\nzh-TW\t繁體中文";
+
+    // キャラ別ボイス名一覧。
+    d["charVoiceNames"] = global.KrkrzAndroidCharVoiceNames;
+
+    return d;
+}
+
+// ----------------------------------------------------------------------------
+//  KrkrzAndroidSetConfig(dict) -> void
+//  画面を閉じるときに編集値 (音量以外) がまとめて渡される。部分辞書。
+// ----------------------------------------------------------------------------
+function KrkrzAndroidSetConfig(dict)
+{
+    if(dict === void) return;
+    var store = global.KrkrzAndroidConfigStore;
+    // 渡されたキーだけ反映する。
+    var keys = [
+        "screenEffect","systemEffect","windowOpacity",
+        "messageSpeed","autoModeSpeed","autoReleaseOnChoice","autoWaitVoice",
+        "skipMode","skipReleaseOnChoice","skipReadText",
+        "lowerBgmOnVoice","lowerSeOnVoice",
+        "mainTextLang","subTextLang"
+    ];
+    for(var i = 0; i < keys.count; i++) {
+        var k = keys[i];
+        if(dict[k] !== void) store[k] = dict[k];
+    }
+
+    // → 配線例: ここで案件のエンジン変数へ反映する。
+    //   kag.skipMode          = store["skipMode"];
+    //   kag.autoModeInterval  = 1000 - store["autoModeSpeed"] * 9;   // 速度→ms 変換例
+    //   Config.windowOpacity  = store["windowOpacity"];
+    //   ...
+    //   反映後、必要なら設定を永続化する (System の保存領域 / セーブデータ等)。
+}
+
+// ----------------------------------------------------------------------------
+//  KrkrzAndroidGetVolume(key) -> int(0-100)   未知キーは void を返す
+// ----------------------------------------------------------------------------
+function KrkrzAndroidGetVolume(key)
+{
+    var store = global.KrkrzAndroidVolumeStore;
+    if(store[key] !== void) return +store[key];
+    // charVoice:* は未登録ならデフォルト 90 を返す例。
+    if(key.indexOf("charVoice:") == 0) return 90;
+    return void; // 未知キー → その行は表示されない
+}
+
+// ----------------------------------------------------------------------------
+//  KrkrzAndroidSetVolume(key, value) -> void   value: 0-100   (ライブ反映)
+// ----------------------------------------------------------------------------
+function KrkrzAndroidSetVolume(key, value)
+{
+    var v = +value;
+    if(v < 0) v = 0; else if(v > 100) v = 100;
+    global.KrkrzAndroidVolumeStore[key] = v;
+
+    // → 配線例: 実際の音量に即時反映する。
+    //   吉里吉里Z の WaveSoundBuffer.GlobalVolume は 0-100000。0-100 をスケールする。
+    switch(key) {
+    case "master":
+        // WaveSoundBuffer.GlobalVolume = v * 1000;
+        break;
+    case "bgm":
+        // bgmBuffer.volume2 = v * 1000;   // 案件の BGM チャンネルへ
+        break;
+    case "se":
+        // se チャンネルの volume2 を更新
+        break;
+    case "voice":
+    case "systemVoice":
+        // ボイスチャンネルの volume2 を更新
+        break;
+    default:
+        if(key.indexOf("charVoice:") == 0) {
+            // var name = key.substring(10);  // "charVoice:" を除いたキャラ名
+            // 該当キャラのボイスチャンネル音量へ反映
+        }
+        break;
+    }
+}

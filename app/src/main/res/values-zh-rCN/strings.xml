@@ -16,6 +16,38 @@
     <string name="settings_vpad_translucent">半透明显示</string>
     <string name="settings_vpad_translucent_desc">关闭后按钮将以不透明方式绘制。当按钮与背景游戏画面重叠不易辨识时可切换此项。</string>
 
+    <!-- Settings - 吉里吉里本体配置 (经 KrkrzConfig 从 TJS 获取) -->
+    <string name="settings_cfg_loading">正在加载设置…</string>
+    <string name="settings_cfg_unavailable">本体未提供配置获取函数 (KrkrzAndroidGetConfig)。</string>
+    <string name="settings_cfg_sec_system">系统</string>
+    <string name="settings_cfg_sec_message">消息</string>
+    <string name="settings_cfg_sec_volume">音量设置</string>
+    <string name="settings_cfg_sec_voice">语音</string>
+    <string name="settings_cfg_sec_language">语言设置</string>
+    <string name="settings_cfg_screen_effect">画面特效</string>
+    <string name="settings_cfg_system_effect">系统特效</string>
+    <string name="settings_cfg_window_opacity">窗口 (透明 - 不透明)</string>
+    <string name="settings_cfg_message_speed">消息速度 (慢 - 快)</string>
+    <string name="settings_cfg_auto_speed">自动模式速度 (慢 - 快)</string>
+    <string name="settings_cfg_auto_release_choice">遇到选项时取消自动</string>
+    <string name="settings_cfg_auto_wait_voice">自动时等待语音播放结束</string>
+    <string name="settings_cfg_skip_mode">跳过模式</string>
+    <string name="settings_cfg_skip_existing">仅已读</string>
+    <string name="settings_cfg_skip_all">全部</string>
+    <string name="settings_cfg_skip_release_choice">遇到选项时取消跳过</string>
+    <string name="settings_cfg_skip_read_text">自动跳过已读文本</string>
+    <string name="settings_cfg_vol_master">主音量</string>
+    <string name="settings_cfg_vol_bgm">BGM 音量</string>
+    <string name="settings_cfg_vol_se">SE 音量</string>
+    <string name="settings_cfg_vol_system_se">系统 SE 音量</string>
+    <string name="settings_cfg_vol_voice">语音音量</string>
+    <string name="settings_cfg_vol_system_voice">系统语音音量</string>
+    <string name="settings_cfg_lower_bgm_on_voice">语音播放时降低 BGM 音量</string>
+    <string name="settings_cfg_lower_se_on_voice">语音播放时降低 SE 音量</string>
+    <string name="settings_cfg_char_voice">各角色语音音量</string>
+    <string name="settings_cfg_main_text">主文本</string>
+    <string name="settings_cfg_sub_text">副文本</string>
+
     <!-- Play Games admin -->
     <string name="pg_section_signin">登录状态</string>
     <string name="pg_section_achievements">成就</string>

@@ -16,6 +16,38 @@
     <string name="settings_vpad_translucent">半透明で表示する</string>
     <string name="settings_vpad_translucent_desc">OFF にするとボタンを不透明で描画します。背景のゲーム画面と被って見づらい場合に切り替えてください。</string>
 
+    <!-- Settings - 吉里吉里本体コンフィグ (KrkrzConfig 経由で TJS から取得) -->
+    <string name="settings_cfg_loading">設定を読み込み中…</string>
+    <string name="settings_cfg_unavailable">本体側に設定取得関数 (KrkrzAndroidGetConfig) が用意されていません。</string>
+    <string name="settings_cfg_sec_system">システム</string>
+    <string name="settings_cfg_sec_message">メッセージ</string>
+    <string name="settings_cfg_sec_volume">音量設定</string>
+    <string name="settings_cfg_sec_voice">ボイス</string>
+    <string name="settings_cfg_sec_language">言語設定</string>
+    <string name="settings_cfg_screen_effect">画面エフェクト</string>
+    <string name="settings_cfg_system_effect">システムエフェクト</string>
+    <string name="settings_cfg_window_opacity">ウインドウ (透明 - 不透明)</string>
+    <string name="settings_cfg_message_speed">メッセージ速度 (遅い - 速い)</string>
+    <string name="settings_cfg_auto_speed">オートモード速度 (遅い - 速い)</string>
+    <string name="settings_cfg_auto_release_choice">選択肢でオート解除</string>
+    <string name="settings_cfg_auto_wait_voice">オート時ボイス再生終了を待つ</string>
+    <string name="settings_cfg_skip_mode">スキップモード動作</string>
+    <string name="settings_cfg_skip_existing">既読のみ</string>
+    <string name="settings_cfg_skip_all">すべて</string>
+    <string name="settings_cfg_skip_release_choice">選択肢でスキップ解除</string>
+    <string name="settings_cfg_skip_read_text">既読文章は自動スキップ</string>
+    <string name="settings_cfg_vol_master">マスター音量</string>
+    <string name="settings_cfg_vol_bgm">ＢＧＭ音量</string>
+    <string name="settings_cfg_vol_se">ＳＥ音量</string>
+    <string name="settings_cfg_vol_system_se">システムＳＥ音量</string>
+    <string name="settings_cfg_vol_voice">ボイス音量</string>
+    <string name="settings_cfg_vol_system_voice">システムボイス音量</string>
+    <string name="settings_cfg_lower_bgm_on_voice">ボイス再生時にBGM音量を下げる</string>
+    <string name="settings_cfg_lower_se_on_voice">ボイス再生時にSE音量を下げる</string>
+    <string name="settings_cfg_char_voice">キャラ別ボイス音量</string>
+    <string name="settings_cfg_main_text">メインテキスト</string>
+    <string name="settings_cfg_sub_text">サブテキスト</string>
+
     <!-- Play Games admin -->
     <string name="pg_section_signin">サインイン状態</string>
     <string name="pg_section_achievements">実績</string>

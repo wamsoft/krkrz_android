@@ -5,9 +5,14 @@
     android:layout_height="match_parent"
     android:fillViewport="true">
 
+    <!-- 大画面 (タブレット横向き等) では各行が画面いっぱいに伸びて間延びするため、
+         SettingsActivity 側で幅を上限 (settings_content_max_width) に制限し中央寄せする。
+         layout_gravity が効くよう ScrollView (= FrameLayout) の直下に置く。 -->
     <LinearLayout
+        android:id="@+id/settings_content"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
         android:orientation="vertical"
         android:padding="16dp">
 
@@ -46,6 +51,15 @@
             android:textAppearance="?attr/textAppearanceCaption"
             android:paddingStart="8dp"
             android:paddingEnd="8dp" />
+
+        <!-- 吉里吉里本体 (TJS) 側のコンフィグ。KrkrzConfig 経由で取得し
+             SettingsActivity が実行時にこのコンテナへ動的に行を追加する。 -->
+        <LinearLayout
+            android:id="@+id/config_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingTop="16dp" />
 
     </LinearLayout>
 

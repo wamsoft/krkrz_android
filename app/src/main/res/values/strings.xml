@@ -19,6 +19,38 @@
     <string name="settings_vpad_translucent">Translucent overlay</string>
     <string name="settings_vpad_translucent_desc">When OFF, the buttons are drawn opaque. Toggle this if the buttons are hard to see against the game screen behind them.</string>
 
+    <!-- Settings - KrkrZ engine config (fetched from TJS via KrkrzConfig) -->
+    <string name="settings_cfg_loading">Loading settings…</string>
+    <string name="settings_cfg_unavailable">The engine does not expose a config interface (KrkrzAndroidGetConfig is not defined).</string>
+    <string name="settings_cfg_sec_system">System</string>
+    <string name="settings_cfg_sec_message">Message</string>
+    <string name="settings_cfg_sec_volume">Volume</string>
+    <string name="settings_cfg_sec_voice">Voice</string>
+    <string name="settings_cfg_sec_language">Language</string>
+    <string name="settings_cfg_screen_effect">Screen effects</string>
+    <string name="settings_cfg_system_effect">System effects</string>
+    <string name="settings_cfg_window_opacity">Window opacity (transparent–opaque)</string>
+    <string name="settings_cfg_message_speed">Message speed (slow–fast)</string>
+    <string name="settings_cfg_auto_speed">Auto-mode speed (slow–fast)</string>
+    <string name="settings_cfg_auto_release_choice">Cancel auto-mode at choices</string>
+    <string name="settings_cfg_auto_wait_voice">Wait for voice to finish in auto-mode</string>
+    <string name="settings_cfg_skip_mode">Skip mode</string>
+    <string name="settings_cfg_skip_existing">Already-read only</string>
+    <string name="settings_cfg_skip_all">All text</string>
+    <string name="settings_cfg_skip_release_choice">Cancel skip at choices</string>
+    <string name="settings_cfg_skip_read_text">Auto-skip already-read text</string>
+    <string name="settings_cfg_vol_master">Master volume</string>
+    <string name="settings_cfg_vol_bgm">BGM volume</string>
+    <string name="settings_cfg_vol_se">SE volume</string>
+    <string name="settings_cfg_vol_system_se">System SE volume</string>
+    <string name="settings_cfg_vol_voice">Voice volume</string>
+    <string name="settings_cfg_vol_system_voice">System voice volume</string>
+    <string name="settings_cfg_lower_bgm_on_voice">Lower BGM while voice plays</string>
+    <string name="settings_cfg_lower_se_on_voice">Lower SE while voice plays</string>
+    <string name="settings_cfg_char_voice">Per-character voice volume</string>
+    <string name="settings_cfg_main_text">Main text</string>
+    <string name="settings_cfg_sub_text">Sub text</string>
+
     <!-- Play Games admin -->
     <string name="pg_section_signin">Sign-in status</string>
     <string name="pg_section_achievements">Achievements</string>

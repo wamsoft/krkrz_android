@@ -15,27 +15,23 @@
             "json",
             "playgames",
             "virtualpad",
-            "license"
+            "license",
+            "androidconfig"
         ],
         "staticPlugins": [
             "playgames",
             "virtualpad",
-            "license"
+            "license",
+            "androidconfig"
         ]
     },
     "assetPack": {
-        "baseFolder": "${KRKRZ_BASE}/krkrz_dev/src/core",
+        "baseFolder": "${BUILD_SYSTEM_DIR}",
         "sources": [
             {
                 "comment": "Copy all files from this project's resource folder to the root of asset pack",
                 "type": "mirror",
-                "from": "${BUILD_SYSTEM_DIR}/resource",
-                "to": ""
-            },
-            {
-                "comment": "Copy all files from KRKRZ base resource folder to the root of asset pack",
-                "type": "mirror",
-                "from": "${KRKRZ_BASE}/krkrz_dev/src/core/resource",
+                "from": "resource",
                 "to": ""
             },
             {
@@ -50,6 +46,19 @@
                 "type": "flatten",
                 "from": "archive",
                 "include": ["*.xp3"]
+            },
+            {
+                "comment": "Copy all files from KRKRZ base resource folder to the root of asset pack",
+                "type": "mirror",
+                "from": "${KRKRZ_BASE}/krkrz_dev/src/core/resource",
+                "to": ""
+            },
+            {
+                "comment": "Copy all files from KRKRZ base resource folder to the root of asset pack",
+                "type": "mirror",
+                "from": "${KRKRZ_BASE}/krkrz_dev/src/core/data",
+                "include": ["**/*"],
+                "exclude": ["**/*.bak", "**/*.psd", "startup.tjs"]
             }
         ]
     }

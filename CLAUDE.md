@@ -101,6 +101,14 @@ Java 依存は `app/build.gradle` に直接書く (krkrz_dev 側ではなくア�
 - 運用手順 (Play Console セットアップ・テスト・拡張): `app/src/main/cpp/playgames/SETUP.md`
 - 同種のプラグインを新規追加するときの汎用手順: `docs/android-jni-plugin.md`
 
+例: `androidconfig` プラグイン (機能設定画面 ↔ 吉里吉里本体コンフィグ連携)
+- C++: `app/src/main/cpp/androidconfig/` (Main.cpp + ConfigBridge.cpp、static plugin)
+- Java: `app/src/main/java/jp/wamsoft/krkrz/config/KrkrzConfig.java` (非同期取得 + UI スレッド配送)、`ui/SettingsActivity.java` が設定行を動的生成
+- `コンフィグ項目.txt` のシステム/メッセージ/音量/言語を、TJS グローバル関数 `KrkrzAndroidGetConfig`/`SetConfig`(辞書)・`KrkrzAndroidGetVolume`/`SetVolume`(0-100) で取得・通知。**「定義されていれば呼ぶ」方式**なので TJS 側未実装でもクラッシュしない
+- TJS 呼び出しは `TVPGetScriptDispatch()` でグローバル取得 → `drainRequests()` (continuous event hook = TJS スレッド) で実行。`JNI_OnLoad` は playgames が既定義のため定義せず、JavaVM は呼び出し時にキャッシュ
+- 契約とキー一覧: `app/src/main/cpp/androidconfig/manual.tjs` / 参考実装: `sample_config.tjs` / 案件側の対応手順: `app/src/main/cpp/androidconfig/SETUP.md`
+- **TJS 側の4関数はゲーム本体スクリプト (`assets/data/` = リポジトリ外) に属するので案件側で配線が必要**
+
 `KrkrzActivity.onCreate` でプラグインの Java 側初期化フックを呼ぶ
 (例: `PlayGamesBridge.initialize(this)`)。
 ネイティブ側コールバックは `tTVPContinuousEventCallbackIntf` 上で

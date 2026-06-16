@@ -87,3 +87,8 @@ app/libs/*.aar
 
 # Claude Code local settings
 .claude/
+
+# サンプル案件データ: startup.tjs (TJS 配線サンプル) のみ追跡し、
+# 動画など大きな素材 (title.webm 等) は追跡しない。
+data/*
+!data/startup.tjs
