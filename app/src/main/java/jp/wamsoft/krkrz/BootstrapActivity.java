@@ -60,8 +60,15 @@ public class BootstrapActivity extends Activity {
     /** 1 回の I/O バッファ。xp3 は数百 MB あるので大きめに取る。 */
     private static final int COPY_BUFFER_BYTES = 1 << 20; // 1 MiB
 
-    /** ローディング背景に使う assets 直下の画像候補 (先に見つかったものを使用)。 */
-    private static final String[] BACKGROUND_ASSET_CANDIDATES = { "loading.jpg", "loading.png" };
+    /**
+     * ローディング背景に使う assets 直下の画像候補 (先に見つかったものを使用)。
+     * Android 専用差し替え用に {@code android_loading.*} を優先し、無ければ共通の
+     * {@code loading.*} にフォールバックする。
+     */
+    private static final String[] BACKGROUND_ASSET_CANDIDATES = {
+            "android_loading.jpg", "android_loading.png",
+            "loading.jpg", "loading.png"
+    };
 
     private TextView statusText;
     private ProgressBar progressBar;
