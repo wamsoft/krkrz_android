@@ -64,19 +64,59 @@ Debug.message("hi")
 応答 JSON: `{ "ok": bool, "result": "<pretty-printed>", "error": "<msg>" }`
 (結果整形は `TVPPrettyPrint` = TJS の `Debug.prettyPrint`)。
 
-`nc` が無ければ Python でも:
+### 高機能クライアント (Python) — `make repl-py`
 
-```python
-import socket
-s = socket.create_connection(("127.0.0.1", 9099))
-s.sendall(b"Plugins.getList()\n")
-print(s.recv(65536).decode())
+`nc` の代わりに、**本家 console REPL に操作を寄せた** Python クライアント
+`scripts/krkrz-repl.py` を用意している (行編集・履歴・自動複数行・外部エディタ・
+色付き整形・自動 forward・自動再接続)。
+
+```bash
+make run       # Debug 起動
+make repl-py   # forward してリッチクライアントで接続
 ```
+
+単体でも使える (forward 済みなら port 指定、未 forward なら --socket で自分で forward):
+
+```bash
+python scripts/krkrz-repl.py --port 9099
+python scripts/krkrz-repl.py --socket <applicationId>.repl   # adb forward も行う
+```
+
+**操作は本家にあわせてある**: プロンプト `krkrz>` / 継続 `...`、**括弧・クォートが
+閉じるまで自動で継続入力**(複数行 = 1 コマンド)、`exit`/`quit`/Ctrl-D で終了。
+
+engine 側 dot コマンド (nc でも使える。socket チャネルが解釈):
+
+| コマンド | 説明 |
+|---|---|
+| `.help` | engine 側ヘルプ |
+| `.depth [N]` | 結果表示の展開深さを表示 / 設定 |
+| `.compact [on\|off]` | 結果表示のコンパクト表示を表示 / 切替 |
+
+クライアント側コマンド:
+
+| コマンド | 説明 |
+|---|---|
+| `exit` / `quit` / Ctrl-D | 終了 (アプリは終了しない) |
+| `.clear` | 入力中の継続バッファを破棄 |
+| `.reconnect` / `.rc` | 接続を張り直す (アプリ再起動後など) |
+| `.edit` / `.e` | `$EDITOR` を開き、内容を 1 コマンドとして送信 |
+| `.load <file>` / `.l` | ファイルを 1 コマンドとして送信 |
+| `.info` | 接続情報 |
+| `.clienthelp` | クライアント側ヘルプ |
+
+依存は標準ライブラリのみ。`pip install prompt_toolkit` を入れると Windows でも
+インライン行編集が快適になる (無くても readline / 素の input にフォールバック)。
+
+> 本家との差異: `exit`/`quit` は本家ではアプリ終了だが、リモート接続では**接続を
+> 閉じるだけ**(アプリは動作継続)。`.mem`/`.cap`/`.dlg` 等の Agent/メモリ系は console
+> /Elements 依存で socket では非対応。
 
 ## 注意・制限
 
 - **Debug ビルド専用**。Release には REPL が無い (セキュリティ・サイズ)。
-- 1 行 = 1 コマンド。複数文はセミコロンで繋ぐ (`var a=1; a*10`)。
+- 複数行入力は括弧・クォートの釣り合いで自動継続 (engine へは行末 `\` 継続で改行を保って
+  送る)。nc から手打ちする場合も行末 `\` で複数行を 1 コマンドにできる。
 - 評価は**メインスレッドで直列実行**される (TJS のスレッドアフィニティを守るため)。
   重い式はゲーム進行を一瞬止める。
 - **`Agent.*` (入力注入・画面キャプチャ・ダイアログ操作) は Android では未対応**。

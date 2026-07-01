@@ -38,7 +38,7 @@ GRADLE_ASSEMBLE := :$(MODULE):assemble$(BUILD_TYPE)
 GRADLE_INSTALL  := :$(MODULE):install$(BUILD_TYPE)
 GRADLE_BUNDLE   := :$(MODULE):bundle$(BUILD_TYPE)
 
-.PHONY: help vars build assemble bundle install reinstall uninstall run debug stop logcat clean clean-cmake distclean test connected devices check-adb check-appid release-debug install-release-debug pad-install pad-aab pad-package repl
+.PHONY: help vars build assemble bundle install reinstall uninstall run debug stop logcat clean clean-cmake distclean test connected devices check-adb check-appid release-debug install-release-debug pad-install pad-aab pad-package repl repl-py
 
 help:
 	@echo "Android Makefile (gradlew wrapper)"
@@ -54,7 +54,8 @@ help:
 	@echo "  make debug           - Install and launch with debugger wait (-D)"
 	@echo "  make uninstall       - Uninstall app via adb"
 	@echo "  make logcat          - Tail adb logcat"
-	@echo "  make repl            - Forward + connect to the on-device TJS REPL (Debug build)"
+	@echo "  make repl            - Forward + connect to the on-device TJS REPL via nc (Debug build)"
+	@echo "  make repl-py         - Same, using the richer Python client (edit/history/multiline)"
 	@echo "  make clean           - Clean build (gradle clean)"
 	@echo "  make clean-cmake     - Remove CMake artifacts (.cxx, intermediates/cxx, vcpkg installs)"
 	@echo "  make distclean       - clean + clean-cmake (full reset)"
@@ -160,6 +161,14 @@ repl: check-adb check-appid
 	else \
 		echo "nc が見つかりません。任意の TCP クライアントで 127.0.0.1:$(REPL_PORT) へ接続してください"; \
 	fi
+
+# Python 版クライアント (行編集 / 履歴 / 複数行 / 外部エディタ / 再接続)。
+# forward はここ (git bash) で行い、client は port に繋ぐだけにする
+# (Windows の python へ posix パスの adb を渡さずに済む)。
+PYTHON ?= python
+repl-py: check-adb check-appid
+	$(ADB) forward tcp:$(REPL_PORT) localabstract:$(APP_ID).repl
+	$(PYTHON) scripts/krkrz-repl.py --port $(REPL_PORT)
 
 # ----- Clean & Tests -----
 
