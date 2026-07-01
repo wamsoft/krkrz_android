@@ -38,7 +38,7 @@ GRADLE_ASSEMBLE := :$(MODULE):assemble$(BUILD_TYPE)
 GRADLE_INSTALL  := :$(MODULE):install$(BUILD_TYPE)
 GRADLE_BUNDLE   := :$(MODULE):bundle$(BUILD_TYPE)
 
-.PHONY: help vars build assemble bundle install reinstall uninstall run debug stop logcat clean clean-cmake distclean test connected devices check-adb check-appid release-debug install-release-debug pad-install pad-aab
+.PHONY: help vars build assemble bundle install reinstall uninstall run debug stop logcat clean clean-cmake distclean test connected devices check-adb check-appid release-debug install-release-debug pad-install pad-aab pad-package repl
 
 help:
 	@echo "Android Makefile (gradlew wrapper)"
@@ -54,6 +54,7 @@ help:
 	@echo "  make debug           - Install and launch with debugger wait (-D)"
 	@echo "  make uninstall       - Uninstall app via adb"
 	@echo "  make logcat          - Tail adb logcat"
+	@echo "  make repl            - Forward + connect to the on-device TJS REPL (Debug build)"
 	@echo "  make clean           - Clean build (gradle clean)"
 	@echo "  make clean-cmake     - Remove CMake artifacts (.cxx, intermediates/cxx, vcpkg installs)"
 	@echo "  make distclean       - clean + clean-cmake (full reset)"
@@ -145,6 +146,20 @@ stop: check-adb check-appid
 
 logcat: check-adb
 	$(ADB) logcat
+
+# ----- REPL (adb 経由の TJS 対話シェル, Debug ビルド専用) -----
+# アプリ (Debug) が起動中に叩く。socket 名は KrkrzActivity と同じ規則 <APP_ID>.repl。
+# TCP 転送してから nc で接続する (nc が無ければ転送だけして案内を出す)。
+REPL_PORT ?= 9099
+repl: check-adb check-appid
+	$(ADB) forward tcp:$(REPL_PORT) localabstract:$(APP_ID).repl
+	@echo "REPL forwarded: tcp:$(REPL_PORT) -> localabstract:$(APP_ID).repl"
+	@echo "(Debug ビルドで起動中のこと: make run。 1 行 TJS を入力して Enter、Ctrl+C で終了)"
+	@if command -v nc >/dev/null 2>&1; then \
+		nc 127.0.0.1 $(REPL_PORT); \
+	else \
+		echo "nc が見つかりません。任意の TCP クライアントで 127.0.0.1:$(REPL_PORT) へ接続してください"; \
+	fi
 
 # ----- Clean & Tests -----
 

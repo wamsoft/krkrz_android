@@ -64,6 +64,23 @@ public class KrkrzActivity extends SDLActivity {
             }
         }
 
+        // REPL: デバッグビルドのみ、adb 経由で叩ける abstract unix socket を有効化する。
+        // engine (tTVPReplSocketChannel) が env KRKRZ_REPL_SOCKET を読んで listen する。
+        // Release ビルドには REPL 自体が native にコンパイルされない (CMakeLists 参照)
+        // ので、この env は無害。SDL と同様 super.onCreate (=native 起動) 前に設定する。
+        if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            // socket 名はパッケージ名から一意に導く (複数の krkrz アプリを入れても衝突しない)。
+            // Makefile の `make repl` も同じ規則 (<applicationId>.repl) で forward する。
+            String replSocket = getPackageName() + ".repl";
+            try {
+                android.system.Os.setenv("KRKRZ_REPL_SOCKET", replSocket, true);
+                android.util.Log.i("KrkrzActivity", "REPL socket enabled: @" + replSocket
+                        + "  (make repl / adb forward tcp:9099 localabstract:" + replSocket + ")");
+            } catch (android.system.ErrnoException e) {
+                android.util.Log.w("KrkrzActivity", "setenv KRKRZ_REPL_SOCKET failed", e);
+            }
+        }
+
         System.loadLibrary("SDL3");
         System.loadLibrary("krkrz");
 
