@@ -10,7 +10,7 @@
 ## 1. 背景 — なぜ `make pad-install` だと重いか
 
 `make pad-install` (= `bundletool build-apks --local-testing` → `install-apks`) は、
-**毎回すべての asset pack (marco で ~3.5GB) を端末へ push** する。コードを 1 行直すたびに
+**毎回すべての asset pack (案件によっては数 GB) を端末へ push** する。コードを 1 行直すたびに
 これをやると数分かかる。一方、素の `make run` (`assembleDebug` + `adb install`) は速いが、
 PAD 構成では **APK にパックデータが入らず、local-testing の配線も無い**ので、
 起動時に PAD 解決が失敗してゲームデータが見つからない (→ [android-play-asset-delivery.md] 参照)。
@@ -23,7 +23,7 @@ PAD 構成では **APK にパックデータが入らず、local-testing の配�
 ## 2. local-testing の実体 (実機実測)
 
 `make pad-fast` の前提になっている bundletool `--local-testing` の挙動を、
-実機 (`jp.tokyotoon.marcothegalaxydragon`) で実測して確定させたもの。
+実機で実測して確定させたもの (パッケージ名は例として `<pkg>` と表記)。
 
 ### 2.1 base APK 側の配線 (meta-data)
 
