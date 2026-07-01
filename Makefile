@@ -38,7 +38,7 @@ GRADLE_ASSEMBLE := :$(MODULE):assemble$(BUILD_TYPE)
 GRADLE_INSTALL  := :$(MODULE):install$(BUILD_TYPE)
 GRADLE_BUNDLE   := :$(MODULE):bundle$(BUILD_TYPE)
 
-.PHONY: help vars build assemble bundle install reinstall uninstall run debug stop logcat clean clean-cmake distclean test connected devices check-adb check-appid release-debug install-release-debug
+.PHONY: help vars build assemble bundle install reinstall uninstall run debug stop logcat clean clean-cmake distclean test connected devices check-adb check-appid release-debug install-release-debug pad-install pad-aab pad-package repl repl-py
 
 help:
 	@echo "Android Makefile (gradlew wrapper)"
@@ -47,10 +47,15 @@ help:
 	@echo "  make install         - Install $(BUILD_TYPE) on device/emulator"
 	@echo "  make release-debug   - Assemble Release APK signed with debug key (assembleReleaseDebugSigned)"
 	@echo "  make install-release-debug - Install Release APK signed with debug key"
+	@echo "  make pad-install     - Build AAB + install locally via bundletool --local-testing (PAD)"
+	@echo "  make pad-aab         - Build the Play Store AAB (base + PAD asset packs)"
+	@echo "  make pad-package     - Build a portable installer (app.apks + bundletool + scripts)"
 	@echo "  make run             - Install and launch app (launcher activity)"
 	@echo "  make debug           - Install and launch with debugger wait (-D)"
 	@echo "  make uninstall       - Uninstall app via adb"
 	@echo "  make logcat          - Tail adb logcat"
+	@echo "  make repl            - Forward + connect to the on-device TJS REPL via nc (Debug build)"
+	@echo "  make repl-py         - Same, using the richer Python client (edit/history/multiline)"
 	@echo "  make clean           - Clean build (gradle clean)"
 	@echo "  make clean-cmake     - Remove CMake artifacts (.cxx, intermediates/cxx, vcpkg installs)"
 	@echo "  make distclean       - clean + clean-cmake (full reset)"
@@ -89,6 +94,22 @@ build assemble:
 bundle:
 	$(GRADLEW) $(GRADLE_BUNDLE)
 
+# ----- Play Asset Delivery (PAD) -----
+
+# Build an AAB (base + asset packs) and install it locally via bundletool --local-testing.
+# Uses BUILD_TYPE (default Debug). See docs/android-play-asset-delivery.md.
+pad-install: check-adb
+	VARIANT=$(BUILD_TYPE) PROJECT_DIR="$(PROJECT_DIR)" ./scripts/pad-local-install.sh
+
+# Build the Play Store AAB (default Release variant; override with BUILD_TYPE=...).
+pad-aab:
+	VARIANT=$(if $(filter Debug,$(BUILD_TYPE)),Release,$(BUILD_TYPE)) PROJECT_DIR="$(PROJECT_DIR)" ./scripts/pad-build-aab.sh
+
+# Build a portable installer folder (app.apks + bundletool + install scripts) that can be
+# copied to any machine with Java + adb and installed without this repo. See the script.
+pad-package:
+	VARIANT=$(BUILD_TYPE) PROJECT_DIR="$(PROJECT_DIR)" ./scripts/pad-package-installer.sh
+
 # Release APK signed with the debug key (no release keystore required)
 release-debug:
 	$(GRADLEW) :$(MODULE):assembleReleaseDebugSigned
@@ -126,6 +147,28 @@ stop: check-adb check-appid
 
 logcat: check-adb
 	$(ADB) logcat
+
+# ----- REPL (adb 経由の TJS 対話シェル, Debug ビルド専用) -----
+# アプリ (Debug) が起動中に叩く。socket 名は KrkrzActivity と同じ規則 <APP_ID>.repl。
+# TCP 転送してから nc で接続する (nc が無ければ転送だけして案内を出す)。
+REPL_PORT ?= 9099
+repl: check-adb check-appid
+	$(ADB) forward tcp:$(REPL_PORT) localabstract:$(APP_ID).repl
+	@echo "REPL forwarded: tcp:$(REPL_PORT) -> localabstract:$(APP_ID).repl"
+	@echo "(Debug ビルドで起動中のこと: make run。 1 行 TJS を入力して Enter、Ctrl+C で終了)"
+	@if command -v nc >/dev/null 2>&1; then \
+		nc 127.0.0.1 $(REPL_PORT); \
+	else \
+		echo "nc が見つかりません。任意の TCP クライアントで 127.0.0.1:$(REPL_PORT) へ接続してください"; \
+	fi
+
+# Python 版クライアント (行編集 / 履歴 / 複数行 / 外部エディタ / 再接続)。
+# forward はここ (git bash) で行い、client は port に繋ぐだけにする
+# (Windows の python へ posix パスの adb を渡さずに済む)。
+PYTHON ?= python
+repl-py: check-adb check-appid
+	$(ADB) forward tcp:$(REPL_PORT) localabstract:$(APP_ID).repl
+	$(PYTHON) scripts/krkrz-repl.py --port $(REPL_PORT)
 
 # ----- Clean & Tests -----
 

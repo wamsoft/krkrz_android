@@ -97,6 +97,21 @@ option(KRKRZ_BUILD_TESTS "build SIMD parity tests" OFF)
 # Elements (汎用ダイアログ機構 / cycfi::elements + thorvg + elements_modal)
 # Android では未使用なので OFF にして依存ごと除外する。
 option(KRKRZ_USE_ELEMENTS "embed Elements dialog UI" OFF)
+
+# REPL (adb 経由の TJS 対話シェル) は Debug ビルドのみ有効化する。
+# - icline (行編集) は NDK 未対応。Android は console を使わず socket 経路のみ
+#   なので KRKRZ_REPL_LINE_EDIT=OFF で icline の FetchContent を回避する
+#   (REPL.cpp は KRKRZ_REPL_NO_ICLINE で fgets fallback になるが、Android では
+#    console スレッド自体を起動しないので実際には使われない)。
+# - 実際に listen するのは KrkrzActivity が debuggable 時に env KRKRZ_REPL_SOCKET
+#   を設定したときだけ (tTVPReplSocketChannel::ShouldStart)。Release には REPL 自体
+#   がコンパイルされない。
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(KRKRZ_REPL ON CACHE BOOL "" FORCE)
+    set(KRKRZ_REPL_LINE_EDIT OFF CACHE BOOL "" FORCE)
+    message(STATUS "[krkrz] REPL enabled (Debug): socket channel via KRKRZ_REPL_SOCKET")
+endif()
+
 add_subdirectory(${KRKRZ_DIR} ${CMAKE_CURRENT_BINARY_DIR}/krkrz)
 
 # ----------------------------------------------------

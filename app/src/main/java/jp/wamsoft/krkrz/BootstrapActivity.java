@@ -3,12 +3,17 @@ package jp.wamsoft.krkrz;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.content.res.AssetManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -43,25 +48,137 @@ public class BootstrapActivity extends Activity {
     /** {@link android.content.Context#getFilesDir()} 配下に作る cache サブディレクトリ名。 */
     public static final String ASSET_CACHE_SUBDIR = "assets";
 
+    /**
+     * PAD パックを複数束ねる symlink farm のサブディレクトリ名（{@code <filesDir>/padroot/}）。
+     * fast-follow / on-demand パックの {@code assetsPath()} を単一ルートに統合する。
+     */
+    public static final String PAD_ROOT_SUBDIR = "padroot";
+
     private static final String PREFS_NAME = "bootstrap";
     private static final String KEY_VERSION_CODE = "apk_version_code";
     private static final String KEY_LAST_UPDATE_TIME = "apk_last_update_time";
     /** 1 回の I/O バッファ。xp3 は数百 MB あるので大きめに取る。 */
     private static final int COPY_BUFFER_BYTES = 1 << 20; // 1 MiB
 
+    /**
+     * ローディング背景に使う assets 直下の画像候補 (先に見つかったものを使用)。
+     * Android 専用差し替え用に {@code android_loading.*} を優先し、無ければ共通の
+     * {@code loading.*} にフォールバックする。
+     */
+    private static final String[] BACKGROUND_ASSET_CANDIDATES = {
+            "android_loading.jpg", "android_loading.png",
+            "loading.jpg", "loading.png"
+    };
+
     private TextView statusText;
     private ProgressBar progressBar;
+    private ImageView backgroundImage;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // KrkrzActivity (SDL) と同じ向きにローディング画面も合わせる。値は
+        // R.string.sdl_orientations (resOverride で差し替え可)。SDL の hint 解釈に合わせて
+        // ActivityInfo の向きへマップする。
+        setRequestedOrientation(orientationFromSdlHint(getString(R.string.sdl_orientations)));
+
         setContentView(R.layout.bootstrap);
 
         statusText = findViewById(R.id.bootstrap_status);
         progressBar = findViewById(R.id.bootstrap_progress);
+        backgroundImage = findViewById(R.id.bootstrap_bg);
 
+        loadBackgroundAsync();
         new Thread(this::runCopyThenLaunch, "BootstrapCopy").start();
+    }
+
+    /**
+     * ローディング背景画像を assets から非同期に読み込んで表示する。
+     * {@link #BACKGROUND_ASSET_CANDIDATES} を順に探し、最初に見つかったものを
+     * 画面サイズに合わせてダウンサンプルして {@code bootstrap_bg} にセットする。
+     * 画像が無い案件 (sample 等) では何もせず黒背景のまま。
+     */
+    private void loadBackgroundAsync() {
+        new Thread(() -> {
+            final Bitmap bmp = decodeAssetBackground();
+            if (bmp != null) {
+                mainHandler.post(() -> {
+                    if (backgroundImage != null) backgroundImage.setImageBitmap(bmp);
+                });
+            }
+        }, "BootstrapBg").start();
+    }
+
+    private Bitmap decodeAssetBackground() {
+        AssetManager am = getAssets();
+        DisplayMetrics dm = getResources().getDisplayMetrics();
+        int reqW = Math.max(1, dm.widthPixels);
+        int reqH = Math.max(1, dm.heightPixels);
+        for (String name : BACKGROUND_ASSET_CANDIDATES) {
+            try {
+                BitmapFactory.Options bounds = new BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                try (InputStream in = am.open(name)) {
+                    BitmapFactory.decodeStream(in, null, bounds);
+                }
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) continue;
+
+                BitmapFactory.Options opts = new BitmapFactory.Options();
+                opts.inSampleSize = calcInSampleSize(bounds.outWidth, bounds.outHeight, reqW, reqH);
+                try (InputStream in = am.open(name)) {
+                    Bitmap bmp = BitmapFactory.decodeStream(in, null, opts);
+                    if (bmp != null) {
+                        Log.i(TAG, "loading background = " + name
+                                + " (" + bmp.getWidth() + "x" + bmp.getHeight() + ")");
+                        return bmp;
+                    }
+                }
+            } catch (IOException e) {
+                // 見つからない候補は無視して次へ
+            }
+        }
+        return null; // 無ければ黒背景のまま
+    }
+
+    /** centerCrop 品質を保ちつつメモリを抑えるダウンサンプル係数 (画面より少し大きめで止める)。 */
+    private static int calcInSampleSize(int srcW, int srcH, int reqW, int reqH) {
+        int sample = 1;
+        while ((srcH / (sample * 2)) >= reqH && (srcW / (sample * 2)) >= reqW) {
+            sample *= 2;
+        }
+        return sample;
+    }
+
+    /**
+     * SDL_HINT_ORIENTATIONS の値 (空白区切りの LandscapeLeft/LandscapeRight/Portrait/
+     * PortraitUpsideDown) を Activity の requestedOrientation にマップする。
+     * SDL の setOrientationBis と同じ意味付け (両向き→USER_*、片方→固定)。
+     */
+    private static int orientationFromSdlHint(String hint) {
+        if (hint == null || hint.trim().isEmpty()) {
+            return ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+        }
+        boolean ll = false, lr = false, p = false, pu = false;
+        for (String t : hint.trim().split("\\s+")) {
+            switch (t) {
+                case "LandscapeLeft":       ll = true; break;
+                case "LandscapeRight":      lr = true; break;
+                case "Portrait":            p = true;  break;
+                case "PortraitUpsideDown":  pu = true; break;
+                default: break;
+            }
+        }
+        boolean land = ll || lr, port = p || pu;
+        if (land && port) return ActivityInfo.SCREEN_ORIENTATION_FULL_USER;
+        if (ll && lr)     return ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE;
+        if (p && pu)      return ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT;
+        if (ll)           return ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+        if (lr)           return ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
+        if (p)            return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+        if (pu)           return ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT;
+        return ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
     }
 
     private void runCopyThenLaunch() {
@@ -72,12 +189,62 @@ public class BootstrapActivity extends Activity {
             // 失敗しても KrkrzActivity 起動は試みる (engine が AssetManager に
             // フォールバックする経路を持っているため、最悪 legacy ルートで動く)。
         }
-        mainHandler.post(this::launchMainActivity);
+
+        // データルートを優先順で解決:
+        //   1. PAD (fast-follow/on-demand) パック → symlink farm で束ねた padroot
+        //   2. 従来の assets コピー cache (<filesDir>/assets/)  ← install-time パック含む
+        //   3. legacy (null → engine が AssetManager フォールバック)
+        String assetRoot = null;
+        try {
+            assetRoot = resolveAssetRoot();
+        } catch (Exception e) {
+            Log.e(TAG, "PAD resolve failed; falling back to assets cache", e);
+        }
+        if (assetRoot == null) {
+            File assetsCache = new File(getFilesDir(), ASSET_CACHE_SUBDIR);
+            if (assetsCache.isDirectory()) {
+                assetRoot = assetsCache.getAbsolutePath() + "/";
+            }
+        }
+
+        final String finalRoot = assetRoot;
+        mainHandler.post(() -> launchMainActivity(finalRoot));
     }
 
-    private void launchMainActivity() {
+    /**
+     * PAD の fetch パック (R.array.pad_fetch_packs = fast-follow + on-demand) を用意し、
+     * assets cache と合わせて {@code <filesDir>/padroot/} に symlink 統合したパスを返す。
+     * fetch パックが無ければ従来の assets cache（または null）を返す。
+     */
+    private String resolveAssetRoot() throws IOException, InterruptedException {
+        String[] fetchPacks = getResources().getStringArray(R.array.pad_fetch_packs);
+        File assetsCache = new File(getFilesDir(), ASSET_CACHE_SUBDIR);
+
+        if (fetchPacks.length == 0) {
+            // PAD 無し（sample 等）: 従来どおり assets cache を単一ルートに。
+            return assetsCache.isDirectory() ? assetsCache.getAbsolutePath() + "/" : null;
+        }
+
+        postStatus("Preparing add-on data…", 0, 1);
+        List<String> packDirs = PadAssetResolver.ensurePacksReady(this, fetchPacks, this::postProgressBytes);
+
+        List<File> roots = new ArrayList<>();
+        // 先勝ち: base assets (install-time パック含む) を優先、続いて各 PAD パック。
+        if (assetsCache.isDirectory()) roots.add(assetsCache);
+        for (String d : packDirs) roots.add(new File(d));
+
+        File padroot = new File(getFilesDir(), PAD_ROOT_SUBDIR);
+        PadAssetResolver.buildSymlinkFarm(padroot, roots);
+        Log.i(TAG, "asset root (PAD merged) = " + padroot.getAbsolutePath());
+        return padroot.getAbsolutePath() + "/";
+    }
+
+    private void launchMainActivity(String assetRoot) {
         Intent intent = new Intent(this, KrkrzActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        if (assetRoot != null) {
+            intent.putExtra(KrkrzActivity.EXTRA_ASSET_ROOT, assetRoot);
+        }
         startActivity(intent);
         finish();
     }
@@ -216,6 +383,21 @@ public class BootstrapActivity extends Activity {
         } catch (Exception e) {
             return -1L;
         }
+    }
+
+    /** PAD ダウンロード進捗（byte 単位、GB になりうる）を MB スケールで表示。 */
+    private void postProgressBytes(String label, long done, long total) {
+        mainHandler.post(() -> {
+            int doneMb = (int) (done / (1024L * 1024L));
+            int totalMb = (int) Math.max(1L, total / (1024L * 1024L));
+            if (statusText != null) {
+                statusText.setText(getString(R.string.bootstrap_status_mb_fmt, label, doneMb, totalMb));
+            }
+            if (progressBar != null) {
+                progressBar.setMax(totalMb);
+                progressBar.setProgress(doneMb);
+            }
+        });
     }
 
     private void postStatus(String label, int done, int total) {

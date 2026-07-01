@@ -30,6 +30,12 @@ import jp.wamsoft.krkrz.virtualpad.VirtualPadPrefs;
  * 左端スワイプでサイドメニューを開けるようにする。
  */
 public class KrkrzActivity extends SDLActivity {
+    /**
+     * {@link BootstrapActivity} が解決したデータルート絶対パス（末尾スラッシュ付き）を
+     * 受け渡す Intent extra キー。PAD の padroot / assets cache いずれか。
+     */
+    public static final String EXTRA_ASSET_ROOT = "assetRoot";
+
     private native void setAssetManager(AssetManager assetManager);
     private native void setAssetCacheDir(String path);
 
@@ -45,15 +51,52 @@ public class KrkrzActivity extends SDLActivity {
         // を load していないため、依存順 (SDL3 → krkrz) に手動で先 load する。
         // どちらも System.loadLibrary は idempotent なので super 側で重複呼出
         // しても問題ない。
+        // 許可する画面の向きを SDL に伝える。SDL は super.onCreate 内で native スレッドを
+        // 起動し、ウィンドウ生成時に SDL_HINT_ORIENTATIONS (env: SDL_ORIENTATIONS) を読む。
+        // 「SDL init より前」= super.onCreate より前に env へ流す必要がある。値は
+        // R.string.sdl_orientations (resOverride で案件ごとに差し替え可)。空なら SDL 既定。
+        String orientations = getString(R.string.sdl_orientations);
+        if (orientations != null && !orientations.trim().isEmpty()) {
+            try {
+                android.system.Os.setenv("SDL_ORIENTATIONS", orientations.trim(), true);
+            } catch (android.system.ErrnoException e) {
+                android.util.Log.w("KrkrzActivity", "setenv SDL_ORIENTATIONS failed", e);
+            }
+        }
+
+        // REPL: デバッグビルドのみ、adb 経由で叩ける abstract unix socket を有効化する。
+        // engine (tTVPReplSocketChannel) が env KRKRZ_REPL_SOCKET を読んで listen する。
+        // Release ビルドには REPL 自体が native にコンパイルされない (CMakeLists 参照)
+        // ので、この env は無害。SDL と同様 super.onCreate (=native 起動) 前に設定する。
+        if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            // socket 名はパッケージ名から一意に導く (複数の krkrz アプリを入れても衝突しない)。
+            // Makefile の `make repl` も同じ規則 (<applicationId>.repl) で forward する。
+            String replSocket = getPackageName() + ".repl";
+            try {
+                android.system.Os.setenv("KRKRZ_REPL_SOCKET", replSocket, true);
+                android.util.Log.i("KrkrzActivity", "REPL socket enabled: @" + replSocket
+                        + "  (make repl / adb forward tcp:9099 localabstract:" + replSocket + ")");
+            } catch (android.system.ErrnoException e) {
+                android.util.Log.w("KrkrzActivity", "setenv KRKRZ_REPL_SOCKET failed", e);
+            }
+        }
+
         System.loadLibrary("SDL3");
         System.loadLibrary("krkrz");
 
-        // BootstrapActivity 経由なら cache が populated 済み。直接起動 (= cache 未生成)
-        // のときは何も渡さず、engine 側のレガシー AssetManager 経路にフォールバック
-        // させる。
-        java.io.File cacheDir = new java.io.File(getFilesDir(), BootstrapActivity.ASSET_CACHE_SUBDIR);
-        if (cacheDir.isDirectory()) {
-            setAssetCacheDir(cacheDir.getAbsolutePath() + "/");
+        // BootstrapActivity が解決したデータルート (PAD の padroot か assets cache) を
+        // Intent extra で受け取り、それを native に渡す。extra が無い場合 (BootstrapActivity
+        // を経由しない直接起動など) は従来どおり <filesDir>/assets を試し、それも無ければ
+        // 何も渡さず engine のレガシー AssetManager 経路へフォールバックさせる。
+        String assetRoot = getIntent() != null ? getIntent().getStringExtra(EXTRA_ASSET_ROOT) : null;
+        if (assetRoot == null) {
+            java.io.File cacheDir = new java.io.File(getFilesDir(), BootstrapActivity.ASSET_CACHE_SUBDIR);
+            if (cacheDir.isDirectory()) {
+                assetRoot = cacheDir.getAbsolutePath() + "/";
+            }
+        }
+        if (assetRoot != null) {
+            setAssetCacheDir(assetRoot);
         }
 
         super.onCreate(savedInstanceState);

@@ -22,6 +22,8 @@ dependencyResolutionManagement {
     }
 }
 
+import groovy.json.JsonSlurper
+
 rootProject.name = "krkrz"
 include ':app'
 
@@ -42,6 +44,76 @@ gradle.ext.BUILD_SYSTEM_DIR = buildSystemDir
 gradle.ext.PROJECT_DIR = projectRootDir
 
 def buildRoot = new File(projectRootDir, 'build/android')
+
+// ---- Play Asset Delivery: dynamically generate + include asset pack modules ----
+// The base :app module must know the asset pack module list at configure time, but the
+// pack *content* is copied by a task at task time (see app/build.gradle packPad_* tasks).
+// We solve the ordering by generating each pack as a real gradle module here (its tiny
+// build.gradle + an empty src/main/assets/), then including it. Content is written into
+// src/main/assets/ later by the copy task, before the bundle/assemble reads it.
+//
+// app-config.json resolution mirrors app/build.gradle: local.properties > env > PROJECT_DIR.
+def settingsLocalProps = new Properties()
+def settingsLocalPropsFile = new File(buildSystemDir, 'local.properties')
+if (settingsLocalPropsFile.exists()) {
+    settingsLocalPropsFile.withInputStream { settingsLocalProps.load(it) }
+}
+def padExpandEnv = { String s ->
+    if (s == null) return null
+    return s.replaceAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/) { match, var ->
+        if (var == 'BUILD_SYSTEM_DIR') return buildSystemDir.absolutePath
+        if (var == 'PROJECT_DIR') return projectRootDir.absolutePath
+        def v = System.getenv(var)
+        return v != null ? v : ''
+    }
+}
+def padConfigOverride = settingsLocalProps['APP_CONFIG_FILE'] ?: System.getenv('APP_CONFIG_FILE')
+def padConfigFile
+if (padConfigOverride) {
+    def expanded = padExpandEnv(padConfigOverride as String)
+    def f = new File(expanded)
+    padConfigFile = f.isAbsolute() ? f : new File(projectRootDir, expanded)
+} else {
+    padConfigFile = new File(projectRootDir, 'app-config.json')
+}
+
+def padPackNames = []
+if (padConfigFile.exists()) {
+    def padConfig = new JsonSlurper().parse(padConfigFile)
+    def padPacks = padConfig.padPacks
+    if (padPacks) {
+        def assetPacksRoot = new File(buildRoot, 'assetpacks')
+        padPacks.each { pack ->
+            def name = pack.name as String
+            if (name == null || !(name ==~ /[a-z0-9_]+/)) {
+                throw new GradleException("[padPacks] invalid pack name '${name}' (allowed: [a-z0-9_]+)")
+            }
+            def deliveryType = (pack.deliveryType ?: 'on-demand') as String
+            if (!(deliveryType in ['install-time', 'fast-follow', 'on-demand'])) {
+                throw new GradleException("[padPacks] pack '${name}': unknown deliveryType '${deliveryType}'")
+            }
+            def moduleDir = new File(assetPacksRoot, name)
+            new File(moduleDir, 'src/main/assets').mkdirs()
+            def content = """\
+// AUTO-GENERATED from app-config.json (padPacks) — DO NOT EDIT.
+plugins { id 'com.android.asset-pack' }
+assetPack {
+    packName = "${name}"
+    dynamicDelivery { deliveryType = "${deliveryType}" }
+}
+"""
+            def gradleFile = new File(moduleDir, 'build.gradle')
+            if (!gradleFile.exists() || gradleFile.text != content) {
+                gradleFile.text = content
+            }
+            include ":${name}"
+            project(":${name}").projectDir = moduleDir
+            padPackNames << name
+        }
+    }
+}
+gradle.ext.PAD_PACK_NAMES = padPackNames
+
 gradle.beforeProject { p ->
     if (p.parent == null) {
         p.layout.buildDirectory.set(new File(buildRoot, 'root'))

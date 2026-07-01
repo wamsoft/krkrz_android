@@ -13,10 +13,10 @@
 吉里吉里Zのソース参照用に、環境変数 KRKRZ_BASE に 
 krkrz_dev （krkrz + plugin 共通プロジェクトフォルダ）がある場所を指定しておきます。
 
-以下のフォルダを参照するように app/src/main/cpp/CMakeLists.txt が記載されています
+以下のフォルダを参照するように `app/src/main/cpp/CMakeLists.txt` が記載されています
 
-吉里吉里本体             ${KRKRZ_BASE}/krkrz_dev/src/core
-吉里吉里プラグインソース ${KRKRZ_BASE}/krkrz_dev/src/plugins 
+吉里吉里本体             `${KRKRZ_BASE}/krkrz_dev/src/core`
+吉里吉里プラグインソース `${KRKRZ_BASE}/krkrz_dev/src/plugins`
 
 同時リンクするプラグインの構成は `app-config.json` の `cmake` セクションで指定します
 (後述「CMake プラグイン構成 (cmake)」参照)。ビルド時にこの設定から
@@ -300,6 +300,42 @@ android-res/
 - `values/strings.xml` のような `values` リソースは **要素単位でマージ** されるため、
   `app_name` だけ書いたファイルを置けば他の string はそのまま残ります。
 - 配列で指定した場合、**後ろの要素ほど優先** (AGP の `srcDirs` の追加順に従う)。
+
+## Play Asset Delivery (PAD) — 大容量データの配信
+
+数 GB の xp3 / 動画は APK に同梱できず Play で配信できないため、**Play Asset Delivery** の
+asset pack として配信する。`assetPack` (APK 同梱・小物用) はそのまま残し、大容量データを
+`app-config.json` の **`padPacks`** に宣言する。ソース規則 (`mirror` / `flatten` /
+`include` / `exclude` / `to`) は上記 `assetPack` と共通。
+
+```jsonc
+"padPacks": [
+  {
+    "name": "coredata",            // gradle module 名 & packName。[a-z0-9_]+ のみ
+    "deliveryType": "on-demand",   // install-time | fast-follow | on-demand (既定 on-demand)
+    "baseFolder": "${PROJECT_DIR}",
+    "sources": [
+      { "type": "flatten", "from": "build/_temp/archive", "include": ["data.xp3", "others.xp3"] }
+    ]
+  }
+  // 1GB 前後を目安に複数パックへ分割する
+]
+```
+
+- `settings.gradle` が各パックの asset pack モジュールを自動生成し、`app/build.gradle` が
+  `android.assetPacks` に紐付け + `packPad_<name>` タスクでデータをコピーする。`padPacks` が
+  無ければ従来どおり (サンプルは影響なし)。
+- ランタイムは `BootstrapActivity` + `PadAssetResolver` がパックを取得し、展開先の絶対パスを
+  `<filesDir>/padroot/` に symlink 統合して engine (`setAssetCacheDir`) へ渡す (native 無改修)。
+
+| 目的 | コマンド |
+|------|----------|
+| ローカル実機で検証 (bundletool `--local-testing`) | `make pad-install` |
+| Play アップロード用 AAB | `make pad-aab` |
+| 配布用ポータブルインストーラ (配布先は Java + adb だけ) | `make pad-package` |
+
+> 仕組み・配信タイプ・パック分割・リリース署名/メモリ/シンボルの注意・トラブルシュートの
+> 詳細は **[docs/android-play-asset-delivery.md](docs/android-play-asset-delivery.md)** を参照。
 
 ## パス文字列の `${...}` 展開
 
@@ -736,6 +772,32 @@ CMake (`app/src/main/cpp/CMakeLists.txt`) から
 
 ※ Android Studio の "Image Asset Studio" 機能を使うと、これらのアイコンを一括で生成・配置できるため便利です。
 
+### ⚠️ アダプティブアイコンの上書きも必須 (density PNG だけでは反映されない)
+
+ビルドシステムの `app/src/main/res/mipmap-anydpi/ic_launcher.xml` に既定の
+**アダプティブアイコン** (`<adaptive-icon>`) が入っている。Android 8.0 (API 26) 以降では
+この `anydpi` 定義が密度別 PNG (`mipmap-*dpi/ic_launcher.png`) より**優先**されるため、
+`resOverride` で密度別 PNG だけを差し替えても**アイコンが変わらない** (既定アイコンが出る)。
+
+案件側 (`resOverride` フォルダ) に **`mipmap-anydpi-v26/ic_launcher.xml` と
+`ic_launcher_round.xml`** も置いて上書きすること (`-v26` は無印 `anydpi` より優先される)。
+
+完成済みの不透明な PNG アイコンをそのまま見せたい場合は、背景レイヤに全面表示する
+のが手軽 (前景は透明。ランチャー形状にマスクされる):
+
+```xml
+<!-- <resOverrideフォルダ>/mipmap-anydpi-v26/ic_launcher.xml (round も同様) -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher" />
+    <foreground android:drawable="@android:color/transparent" />
+</adaptive-icon>
+```
+
+きちんとアダプティブ対応する場合は、前景 (安全領域内の図柄) と背景を分けた
+`<foreground>` / `<background>` を用意する。反映確認は
+`aapt dump badging <apk> | grep icon` で `icon=` が `mipmap-anydpi-v26/...` を
+指していれば OK。
+
 ## 独自の Activity を作成する
 
 デフォルトの `KrkrzActivity` を継承して、独自の初期化処理や機能追加を行うことができます。
@@ -883,6 +945,15 @@ make logcat
 # ユニットテスト / 計測テスト
 make test
 make connected
+
+# Play Asset Delivery (大容量データ配信)
+make pad-install    # ローカル実機に入れて検証 (bundletool --local-testing)
+make pad-aab        # Play アップロード用 AAB を生成
+make pad-package    # 配布用インストーラ一式 (Java + adb だけで入る) を生成
+
+# REPL (adb 経由の TJS 対話シェル, Debug ビルド専用。詳細 docs/android-repl.md)
+make repl           # forward + nc で接続
+make repl-py        # forward + 高機能 Python クライアント (編集/履歴/複数行)
 
 # 変数の確認
 make vars

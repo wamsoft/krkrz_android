@@ -34,30 +34,8 @@ proguard/
 # Android Studio captures folder
 captures/
 
-# IntelliJ IDEA / Android Studio
-.idea/.name
-.idea/workspace.xml
-.idea/tasks.xml
-.idea/gradle.xml
-.idea/assetWizardSettings.xml
-.idea/dictionaries
-.idea/libraries
-.idea/caches
-.idea/navEditor.xml
-.idea/compiler.xml
-.idea/modules.xml
-.idea/deploymentTargetSelector.xml
-.idea/kotlinc.xml
-.idea/jarRepositories.xml
-.idea/appInsightsSettings.xml
-.idea/migrations.xml
-.idea/androidTestResultsUserPreferences.xml
-.idea/other.xml
-.idea/runConfigurations.xml
-.idea/runConfigurations/
-.idea/misc.xml
-.idea/AndroidProjectSystem.xml
-.idea/vcs.xml
+# IntelliJ IDEA / Android Studio (all IDE-local; nothing here is shared)
+.idea/
 *.iml
 *.ipr
 *.iws
@@ -77,6 +55,13 @@ captures/
 # Native C++
 obj/
 cmake_build/
+
+# Downloaded on demand by scripts/pad-local-install.sh
+/tools/bundletool-all-*.jar
+
+# Python (REPL client のキャッシュ)
+__pycache__/
+*.pyc
 
 # Misc
 .DS_Store
