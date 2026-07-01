@@ -35,11 +35,11 @@ BUNDLETOOL_VERSION="${BUNDLETOOL_VERSION:-1.17.2}"
 BUNDLETOOL_JAR="$BUILD_SYSTEM_DIR/tools/bundletool-all-${BUNDLETOOL_VERSION}.jar"
 PYTHON="${PYTHON:-python}"
 
-# MSYS2 / Git-Bash は POSIX パス風の引数を Windows パスへ自動変換する。adb.exe に渡す
-# 端末側パス (例 /sdcard/Android/...) が C:/msys64/sdcard/... へ化けて push が失敗するのを防ぐ。
-# ローカル側パスは d:/ 形式なので無変換でそのまま通る。
-export MSYS2_ARG_CONV_EXCL='*'
-export MSYS_NO_PATHCONV=1
+# MSYS2 / Git-Bash は POSIX パス風の引数を Windows パスへ自動変換する。これは
+# java (bundletool jar / AAB / --output) や adb push の**ローカル側**パス (/d/... -> d:/...)
+# には必要だが、adb に渡す**端末側**パス (/sdcard, /data/local/tmp) まで変換されると
+# C:/msys64/sdcard/... へ化けて壊れる。そこで端末側の prefix だけ変換対象から除外する。
+export MSYS2_ARG_CONV_EXCL='/sdcard;/data/local/tmp'
 
 # APP_ID: make から渡る。単体実行時は app-config.json から拾う (簡易 grep)。
 APP_ID="${APP_ID:-}"
