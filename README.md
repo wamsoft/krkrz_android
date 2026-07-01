@@ -736,6 +736,32 @@ CMake (`app/src/main/cpp/CMakeLists.txt`) から
 
 ※ Android Studio の "Image Asset Studio" 機能を使うと、これらのアイコンを一括で生成・配置できるため便利です。
 
+### ⚠️ アダプティブアイコンの上書きも必須 (density PNG だけでは反映されない)
+
+ビルドシステムの `app/src/main/res/mipmap-anydpi/ic_launcher.xml` に既定の
+**アダプティブアイコン** (`<adaptive-icon>`) が入っている。Android 8.0 (API 26) 以降では
+この `anydpi` 定義が密度別 PNG (`mipmap-*dpi/ic_launcher.png`) より**優先**されるため、
+`resOverride` で密度別 PNG だけを差し替えても**アイコンが変わらない** (既定アイコンが出る)。
+
+案件側 (`resOverride` フォルダ) に **`mipmap-anydpi-v26/ic_launcher.xml` と
+`ic_launcher_round.xml`** も置いて上書きすること (`-v26` は無印 `anydpi` より優先される)。
+
+完成済みの不透明な PNG アイコンをそのまま見せたい場合は、背景レイヤに全面表示する
+のが手軽 (前景は透明。ランチャー形状にマスクされる):
+
+```xml
+<!-- <resOverrideフォルダ>/mipmap-anydpi-v26/ic_launcher.xml (round も同様) -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher" />
+    <foreground android:drawable="@android:color/transparent" />
+</adaptive-icon>
+```
+
+きちんとアダプティブ対応する場合は、前景 (安全領域内の図柄) と背景を分けた
+`<foreground>` / `<background>` を用意する。反映確認は
+`aapt dump badging <apk> | grep icon` で `icon=` が `mipmap-anydpi-v26/...` を
+指していれば OK。
+
 ## 独自の Activity を作成する
 
 デフォルトの `KrkrzActivity` を継承して、独自の初期化処理や機能追加を行うことができます。
