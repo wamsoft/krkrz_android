@@ -46,4 +46,6 @@
     <string name="bootstrap_title">Preparing data…</string>
     <string name="bootstrap_status_initial">Checking cache</string>
     <string name="bootstrap_status_fmt">%1$s  (%2$d / %3$d)</string>
+    <!-- PAD add-on download progress (byte totals shown in MB) -->
+    <string name="bootstrap_status_mb_fmt">%1$s  (%2$d / %3$d MB)</string>
 </resources>

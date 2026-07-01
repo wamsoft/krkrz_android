@@ -30,6 +30,12 @@ import jp.wamsoft.krkrz.virtualpad.VirtualPadPrefs;
  * 左端スワイプでサイドメニューを開けるようにする。
  */
 public class KrkrzActivity extends SDLActivity {
+    /**
+     * {@link BootstrapActivity} が解決したデータルート絶対パス（末尾スラッシュ付き）を
+     * 受け渡す Intent extra キー。PAD の padroot / assets cache いずれか。
+     */
+    public static final String EXTRA_ASSET_ROOT = "assetRoot";
+
     private native void setAssetManager(AssetManager assetManager);
     private native void setAssetCacheDir(String path);
 
@@ -48,12 +54,19 @@ public class KrkrzActivity extends SDLActivity {
         System.loadLibrary("SDL3");
         System.loadLibrary("krkrz");
 
-        // BootstrapActivity 経由なら cache が populated 済み。直接起動 (= cache 未生成)
-        // のときは何も渡さず、engine 側のレガシー AssetManager 経路にフォールバック
-        // させる。
-        java.io.File cacheDir = new java.io.File(getFilesDir(), BootstrapActivity.ASSET_CACHE_SUBDIR);
-        if (cacheDir.isDirectory()) {
-            setAssetCacheDir(cacheDir.getAbsolutePath() + "/");
+        // BootstrapActivity が解決したデータルート (PAD の padroot か assets cache) を
+        // Intent extra で受け取り、それを native に渡す。extra が無い場合 (BootstrapActivity
+        // を経由しない直接起動など) は従来どおり <filesDir>/assets を試し、それも無ければ
+        // 何も渡さず engine のレガシー AssetManager 経路へフォールバックさせる。
+        String assetRoot = getIntent() != null ? getIntent().getStringExtra(EXTRA_ASSET_ROOT) : null;
+        if (assetRoot == null) {
+            java.io.File cacheDir = new java.io.File(getFilesDir(), BootstrapActivity.ASSET_CACHE_SUBDIR);
+            if (cacheDir.isDirectory()) {
+                assetRoot = cacheDir.getAbsolutePath() + "/";
+            }
+        }
+        if (assetRoot != null) {
+            setAssetCacheDir(assetRoot);
         }
 
         super.onCreate(savedInstanceState);

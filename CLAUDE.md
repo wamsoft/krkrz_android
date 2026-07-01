@@ -112,6 +112,15 @@ JNI ネイティブメソッドの実装は `JNIEXPORT` で書いておけば
 
 バージョン・SDK・パッケージ名は **`app-config.json` が単一ソース**。`app/build.gradle` が `JsonSlurper` でパースして `applicationId` / `versionCode` / `versionName` / `compileSdk` / `targetSdk` / `minSdk` / `ndkVersion` に流し込む。Makefile も `APP_ID` を同 JSON から正規表現で抜き出す。`build.gradle` を直接書き換えず、JSON を編集するのが正規ルート。
 
+### Play Asset Delivery (PAD) 対応
+
+大容量データ (xp3・動画, 数 GB) は APK 同梱では Play 配信不可なので、`app-config.json` の **`padPacks`** で Play Asset Delivery のパックとして配信する。`assetPack` (APK 同梱・小物用) はそのまま残し、xp3/動画を `padPacks` へ移す。要点:
+
+- `settings.gradle` が `padPacks[].name` から `${PROJECT_DIR}/build/android/assetpacks/<name>/` に asset pack モジュール (`com.android.asset-pack`) を**動的生成 + include**。`app/build.gradle` が `android.assetPacks` に紐付け、`packPad_<name>` タスクで各モジュールの `src/main/assets/` へコピー。パック名は `[a-z0-9_]+`。
+- `deliveryType` は `install-time` / `fast-follow` / `on-demand` (既定 on-demand)。fast-follow/on-demand は実ファイル展開され `assetsPath()` で絶対パスが取れる → 既存 `setAssetCacheDir()` にそのまま渡せる (**native 無改修・データコピー不要**)。install-time は AssetManager 名前空間なので既存 Bootstrap コピー経路が拾う。
+- ランタイム: `BootstrapActivity` が `PadAssetResolver` で fetch パック (`R.array.pad_fetch_packs`) を取得 (進捗は既存 ProgressBar) し `<filesDir>/padroot/` に symlink 統合 → `KrkrzActivity` へ Intent extra `assetRoot` で渡す。`padPacks` 無しのサンプルは従来動作 (後方互換)。
+- ローカル検証は `make pad-install` (bundletool `--local-testing`)、Play 用 AAB は `make pad-aab`。詳細は `docs/android-play-asset-delivery.md`。
+
 ### 署名
 
 Release 署名は `local.properties` の `RELEASE_STORE_FILE` / `RELEASE_STORE_PASSWORD` / `RELEASE_KEY_ALIAS` / `RELEASE_KEY_PASSWORD` から読む (なければ同名の環境変数にフォールバック)。`local.properties` は `.gitignore` 済みなのでそこに置く。CI では環境変数経由で渡す。

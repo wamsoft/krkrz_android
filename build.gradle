@@ -1,4 +1,7 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
     alias(libs.plugins.android.application) apply false
+    // Makes the com.android.asset-pack plugin version available to dynamically
+    // generated Play Asset Delivery pack modules (see settings.gradle padPacks).
+    alias(libs.plugins.android.asset.pack) apply false
 }

@@ -43,6 +43,12 @@ public class BootstrapActivity extends Activity {
     /** {@link android.content.Context#getFilesDir()} 配下に作る cache サブディレクトリ名。 */
     public static final String ASSET_CACHE_SUBDIR = "assets";
 
+    /**
+     * PAD パックを複数束ねる symlink farm のサブディレクトリ名（{@code <filesDir>/padroot/}）。
+     * fast-follow / on-demand パックの {@code assetsPath()} を単一ルートに統合する。
+     */
+    public static final String PAD_ROOT_SUBDIR = "padroot";
+
     private static final String PREFS_NAME = "bootstrap";
     private static final String KEY_VERSION_CODE = "apk_version_code";
     private static final String KEY_LAST_UPDATE_TIME = "apk_last_update_time";
@@ -72,12 +78,62 @@ public class BootstrapActivity extends Activity {
             // 失敗しても KrkrzActivity 起動は試みる (engine が AssetManager に
             // フォールバックする経路を持っているため、最悪 legacy ルートで動く)。
         }
-        mainHandler.post(this::launchMainActivity);
+
+        // データルートを優先順で解決:
+        //   1. PAD (fast-follow/on-demand) パック → symlink farm で束ねた padroot
+        //   2. 従来の assets コピー cache (<filesDir>/assets/)  ← install-time パック含む
+        //   3. legacy (null → engine が AssetManager フォールバック)
+        String assetRoot = null;
+        try {
+            assetRoot = resolveAssetRoot();
+        } catch (Exception e) {
+            Log.e(TAG, "PAD resolve failed; falling back to assets cache", e);
+        }
+        if (assetRoot == null) {
+            File assetsCache = new File(getFilesDir(), ASSET_CACHE_SUBDIR);
+            if (assetsCache.isDirectory()) {
+                assetRoot = assetsCache.getAbsolutePath() + "/";
+            }
+        }
+
+        final String finalRoot = assetRoot;
+        mainHandler.post(() -> launchMainActivity(finalRoot));
     }
 
-    private void launchMainActivity() {
+    /**
+     * PAD の fetch パック (R.array.pad_fetch_packs = fast-follow + on-demand) を用意し、
+     * assets cache と合わせて {@code <filesDir>/padroot/} に symlink 統合したパスを返す。
+     * fetch パックが無ければ従来の assets cache（または null）を返す。
+     */
+    private String resolveAssetRoot() throws IOException, InterruptedException {
+        String[] fetchPacks = getResources().getStringArray(R.array.pad_fetch_packs);
+        File assetsCache = new File(getFilesDir(), ASSET_CACHE_SUBDIR);
+
+        if (fetchPacks.length == 0) {
+            // PAD 無し（sample 等）: 従来どおり assets cache を単一ルートに。
+            return assetsCache.isDirectory() ? assetsCache.getAbsolutePath() + "/" : null;
+        }
+
+        postStatus("Preparing add-on data…", 0, 1);
+        List<String> packDirs = PadAssetResolver.ensurePacksReady(this, fetchPacks, this::postProgressBytes);
+
+        List<File> roots = new ArrayList<>();
+        // 先勝ち: base assets (install-time パック含む) を優先、続いて各 PAD パック。
+        if (assetsCache.isDirectory()) roots.add(assetsCache);
+        for (String d : packDirs) roots.add(new File(d));
+
+        File padroot = new File(getFilesDir(), PAD_ROOT_SUBDIR);
+        PadAssetResolver.buildSymlinkFarm(padroot, roots);
+        Log.i(TAG, "asset root (PAD merged) = " + padroot.getAbsolutePath());
+        return padroot.getAbsolutePath() + "/";
+    }
+
+    private void launchMainActivity(String assetRoot) {
         Intent intent = new Intent(this, KrkrzActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        if (assetRoot != null) {
+            intent.putExtra(KrkrzActivity.EXTRA_ASSET_ROOT, assetRoot);
+        }
         startActivity(intent);
         finish();
     }
@@ -216,6 +272,21 @@ public class BootstrapActivity extends Activity {
         } catch (Exception e) {
             return -1L;
         }
+    }
+
+    /** PAD ダウンロード進捗（byte 単位、GB になりうる）を MB スケールで表示。 */
+    private void postProgressBytes(String label, long done, long total) {
+        mainHandler.post(() -> {
+            int doneMb = (int) (done / (1024L * 1024L));
+            int totalMb = (int) Math.max(1L, total / (1024L * 1024L));
+            if (statusText != null) {
+                statusText.setText(getString(R.string.bootstrap_status_mb_fmt, label, doneMb, totalMb));
+            }
+            if (progressBar != null) {
+                progressBar.setMax(totalMb);
+                progressBar.setProgress(doneMb);
+            }
+        });
     }
 
     private void postStatus(String label, int done, int total) {
