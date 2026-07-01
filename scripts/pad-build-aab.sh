@@ -20,7 +20,10 @@ VARIANT="${VARIANT:-Release}"
 echo "== AAB をビルド (bundle${VARIANT}) =="
 ./gradlew ":app:bundle${VARIANT}"
 
-BUNDLE_DIR="$PROJECT_DIR/build/android/app/outputs/bundle"
+# 出力は variant 別サブフォルダ (bundle/<variant 先頭小文字>/)。
+# bundle/ 全体を find すると別 variant の古い AAB を拾うので variant フォルダに限定する。
+VARIANT_DIR="${VARIANT,}"   # Release -> release, Debug -> debug, ReleaseDebugSigned -> releaseDebugSigned
+BUNDLE_DIR="$PROJECT_DIR/build/android/app/outputs/bundle/$VARIANT_DIR"
 AAB="$(find "$BUNDLE_DIR" -name '*.aab' 2>/dev/null | head -n1 || true)"
 if [ -z "${AAB:-}" ]; then
   echo "ERROR: AAB が見つかりません ($BUNDLE_DIR)"; exit 1
