@@ -331,11 +331,16 @@ asset pack として配信する。`assetPack` (APK 同梱・小物用) はそ�
 | 目的 | コマンド |
 |------|----------|
 | ローカル実機で検証 (bundletool `--local-testing`) | `make pad-install` |
+| 軽量イテレーション (コードだけ入替・変更パックのみ再push) | `make pad-fast` |
 | Play アップロード用 AAB | `make pad-aab` |
 | 配布用ポータブルインストーラ (配布先は Java + adb だけ) | `make pad-package` |
 
+> `make pad-fast` は一度 `make pad-install` した後の**コード反復用**。素の `assembleDebug` を
+> `adb install -r` し、内容が変わったパックだけ再 push する (未変更なら数秒)。
+>
 > 仕組み・配信タイプ・パック分割・リリース署名/メモリ/シンボルの注意・トラブルシュートの
 > 詳細は **[docs/android-play-asset-delivery.md](docs/android-play-asset-delivery.md)** を参照。
+> adb でのファイル確認・削除など日常操作は **[docs/android-adb-tips.md](docs/android-adb-tips.md)**。
 
 ## パス文字列の `${...}` 展開
 
@@ -948,6 +953,7 @@ make connected
 
 # Play Asset Delivery (大容量データ配信)
 make pad-install    # ローカル実機に入れて検証 (bundletool --local-testing)
+make pad-fast       # コード反復用: 素の assembleDebug を install + 変更パックだけ再push (要 事前 pad-install)
 make pad-aab        # Play アップロード用 AAB を生成
 make pad-package    # 配布用インストーラ一式 (Java + adb だけで入る) を生成
 

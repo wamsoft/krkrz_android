@@ -9,6 +9,7 @@
 | 目的 | コマンド |
 |---|---|
 | ローカル実機に入れて検証 (bundletool `--local-testing`) | `make pad-install` ( = `scripts/pad-local-install.sh` ) |
+| 軽量イテレーション (コードだけ入替・変更パックのみ再push) | `make pad-fast` ( = `scripts/pad-fast-install.sh` ) |
 | Play アップロード用 AAB を作る | `make pad-aab` ( = `scripts/pad-build-aab.sh` ) |
 | 配布用ポータブルインストーラを作る (配布先は Java + adb だけ) | `make pad-package` ( = `scripts/pad-package-installer.sh` ) |
 
@@ -119,6 +120,27 @@ PROJECT_DIR=d:/work/game/xxx ./scripts/pad-local-install.sh
 - 注意: `--local-testing` では **fast-follow も自動DLされず on-demand と同様に fetch が必要** (本テンプレートは全 fetch パックを起動時に取得するので問題なし)。
 - ログ: `adb logcat -s BootstrapActivity:* PadAssetResolver:*` で各パックの `assetsPath` と padroot を確認。
 - `VARIANT=Release ./scripts/pad-local-install.sh` で Release AAB を検証可 (要 Release 署名)。
+
+## 軽量イテレーション (`make pad-fast`) — コードだけ直すとき
+
+`make pad-install` は毎回 **全パック (数 GB) を端末へ再 push** するので、コード (Java/native/TJS) だけ直したいときに重い。`make pad-fast` は **変わったものだけ反映**する:
+
+```bash
+PROJECT_DIR=d:/work/game/xxx make pad-fast
+```
+
+- **base APK (コード)**: 素の `assembleDebug -PpadLocalTesting` をビルドし、`adb install -r` で 1 APK だけ入れ替える (数十 MB・数秒)。bundletool は通さない。
+- **pack (データ)**: 各パックの内容ハッシュを前回 push 時のマーカー (`build/android/assetpacks/.fastpush/<name>.sha`) と比較し、**変わったパックだけ** bundletool で作り直して push。push したパックは端末の展開先 `files/assetpacks/<name>` を消して再展開させる。
+- データ未変更なら pack には一切触らず、端末に既にある展開済みデータをそのまま再利用 → **コードのビルド + APK 1 個 install だけ**で済む。
+
+**仕組みの肝**: bundletool `--local-testing` は base manifest に `<meta-data android:name="local_testing_dir" android:value="local_testing"/>` を注入し、これがあると Play ライブラリは `getExternalFilesDir()/local_testing/<pack>-master.apk` からパックを読む。`make pad-fast` は同じ meta-data を **`-PpadLocalTesting` の時だけ** debug manifest に足す (`app/src/padlocal/AndroidManifest.xml`、release には絶対に載らないので本番配信は無影響)。
+
+**前提と注意**:
+- 先に **一度 `make pad-install`** を実行してパックを端末へ配置 + マーカーを作っておくこと。以後 `make pad-fast` が差分だけ反映する。マーカーが無い/パック名を変えた初回は全 push になる (以後は速い)。
+- Debug 専用 (`local_testing_dir` は debug manifest overlay)。Release の検証は `make pad-install VARIANT=Release`。
+- 署名が一致しないと `adb install -r` が失敗する → その場合は一度 `make pad-install` でクリーン導入。
+- 現行 `padPacks` に無い古いパック (rename/削除後) は端末から自動で掃除する。
+- 端末側のファイル確認・手動削除の手順は [android-adb-tips.md](android-adb-tips.md) を参照。
 
 ## ポータブル手動インストーラ (このリポジトリ無しで配布)
 

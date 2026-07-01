@@ -38,7 +38,7 @@ GRADLE_ASSEMBLE := :$(MODULE):assemble$(BUILD_TYPE)
 GRADLE_INSTALL  := :$(MODULE):install$(BUILD_TYPE)
 GRADLE_BUNDLE   := :$(MODULE):bundle$(BUILD_TYPE)
 
-.PHONY: help vars build assemble bundle install reinstall uninstall run debug stop logcat clean clean-cmake distclean test connected devices check-adb check-appid release-debug install-release-debug pad-install pad-aab pad-package repl repl-py
+.PHONY: help vars build assemble bundle install reinstall uninstall run debug stop logcat clean clean-cmake distclean test connected devices check-adb check-appid release-debug install-release-debug pad-install pad-fast pad-aab pad-package repl repl-py
 
 help:
 	@echo "Android Makefile (gradlew wrapper)"
@@ -48,6 +48,7 @@ help:
 	@echo "  make release-debug   - Assemble Release APK signed with debug key (assembleReleaseDebugSigned)"
 	@echo "  make install-release-debug - Install Release APK signed with debug key"
 	@echo "  make pad-install     - Build AAB + install locally via bundletool --local-testing (PAD)"
+	@echo "  make pad-fast        - Fast PAD iteration: reinstall code only, re-push changed packs"
 	@echo "  make pad-aab         - Build the Play Store AAB (base + PAD asset packs)"
 	@echo "  make pad-package     - Build a portable installer (app.apks + bundletool + scripts)"
 	@echo "  make run             - Install and launch app (launcher activity)"
@@ -100,6 +101,13 @@ bundle:
 # Uses BUILD_TYPE (default Debug). See docs/android-play-asset-delivery.md.
 pad-install: check-adb
 	VARIANT=$(BUILD_TYPE) PROJECT_DIR="$(PROJECT_DIR)" ./scripts/pad-local-install.sh
+
+# Fast PAD iteration (Debug only): rebuild + reinstall the base APK (code) via a plain assembleDebug
+# with -PpadLocalTesting, and re-push ONLY the asset packs whose content changed (reusing the packs
+# already on the device otherwise). Run `make pad-install` once first to seed the packs + markers.
+# See docs/android-play-asset-delivery.md and docs/android-adb-tips.md.
+pad-fast: check-adb check-appid
+	PROJECT_DIR="$(PROJECT_DIR)" APP_ID="$(APP_ID)" ./scripts/pad-fast-install.sh
 
 # Build the Play Store AAB (default Release variant; override with BUILD_TYPE=...).
 pad-aab:

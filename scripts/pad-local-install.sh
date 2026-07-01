@@ -17,6 +17,8 @@ set -euo pipefail
 
 BUILD_SYSTEM_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$BUILD_SYSTEM_DIR"
+# shellcheck source=scripts/pad-common.sh
+source "$BUILD_SYSTEM_DIR/scripts/pad-common.sh"
 
 PROJECT_DIR="${PROJECT_DIR:-$BUILD_SYSTEM_DIR}"
 VARIANT="${VARIANT:-Debug}"
@@ -98,6 +100,16 @@ java -jar "$BUNDLETOOL_JAR" build-apks \
 echo "== [3/3] install-apks (接続端末へ) =="
 java -jar "$BUNDLETOOL_JAR" install-apks --apks="$APKS" --adb="$ADB_WIN"
 
+# 差分マーカーを更新: いま端末へ入れた各 pack の内容ハッシュを記録しておく。
+# これで以後 make pad-fast が「変更なし」を判定でき、pack の再 push を省ける。
+MARK="$(pad_marker_dir "$PROJECT_DIR/build/android")"
+mkdir -p "$MARK"
+while IFS= read -r name; do
+  [ -z "$name" ] && continue
+  pad_pack_hash "$PROJECT_DIR/build/android/assetpacks/$name/src/main/assets" > "$MARK/$name.sha"
+done < <(pad_pack_names "$PROJECT_DIR/build/android")
+
 echo
 echo "完了。初回起動で BootstrapActivity が各 on-demand パックを fetch → 進捗表示 → 起動します。"
+echo "以後コードだけ直す場合は make pad-fast が速い (pack 未変更なら再 push しません)。"
 echo "ログ確認: adb logcat -s BootstrapActivity:* PadAssetResolver:*"

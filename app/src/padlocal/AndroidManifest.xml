@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  PAD fast local-testing overlay. Merged into the debug variant ONLY when building with
+  the gradle property padLocalTesting (see app/build.gradle). It adds the same meta-data that
+  bundletool injects for local testing, so a plain assembleDebug APK makes the Play
+  asset-delivery library resolve packs from getExternalFilesDir()/local_testing/ (already on the
+  device) instead of fetching from Play. Used by scripts/pad-fast-install.sh to reinstall just the
+  code without re-pushing the multi-GB packs. Never applied to release, so production is unaffected.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <meta-data
+            android:name="local_testing_dir"
+            android:value="local_testing" />
+    </application>
+</manifest>

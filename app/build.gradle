@@ -162,6 +162,19 @@ android {
     }
 }
 
+// --- PAD fast local-testing wiring (opt-in via -PpadLocalTesting) ---
+// bundletool --local-testing injects <meta-data local_testing_dir="local_testing"> into the base
+// manifest so the Play asset-delivery library reads packs from getExternalFilesDir()/local_testing/
+// instead of fetching from Play. The fast code-only iteration path (scripts/pad-fast-install.sh)
+// builds a plain assembleDebug APK and needs that same wiring — added here only when
+// -PpadLocalTesting is passed, and only to the debug build type's manifest overlay so it can NEVER
+// reach a release AAB (which would break real Play delivery). See docs/android-play-asset-delivery.md.
+if (project.hasProperty('padLocalTesting')) {
+    android.sourceSets.getByName('debug').manifest.srcFile(
+            "${buildSystemDir}/app/src/padlocal/AndroidManifest.xml")
+    logger.lifecycle("[padLocalTesting] debug manifest overlay enabled (meta-data local_testing_dir)")
+}
+
 // --- assetPack / padPacks: copy engine shared by in-APK assets and PAD asset packs ---
 def assetPackOutputDir = layout.buildDirectory.dir("generated/assetPack").get().asFile
 def assetPackConfig = appConfig.assetPack

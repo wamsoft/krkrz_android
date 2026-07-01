@@ -15,6 +15,8 @@ import com.google.android.play.core.assetpacks.model.AssetPackStatus;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -171,7 +173,8 @@ final class PadAssetResolver {
             } else {
                 String rel = base.toPath().relativize(child.toPath()).toString().replace('\\', '/');
                 File link = new File(padroot, rel);
-                if (link.exists()) continue; // first wins
+                // first wins. Use NOFOLLOW so an existing (even dangling) symlink counts as present.
+                if (Files.exists(link.toPath(), LinkOption.NOFOLLOW_LINKS)) continue;
                 File parent = link.getParentFile();
                 if (parent != null && !parent.isDirectory() && !parent.mkdirs() && !parent.isDirectory()) {
                     throw new IOException("failed to create dir: " + parent);
@@ -185,16 +188,30 @@ final class PadAssetResolver {
         }
     }
 
+    /**
+     * padroot を作り直す前に丸ごと消す。symlink farm 特有の注意として、リンク先が既に消えた
+     * **ぶら下がり symlink** を確実に削除する必要がある。{@link File#exists()} は symlink を
+     * 辿るためぶら下がりを「存在しない」と誤判定してしまうので、ここでは NOFOLLOW で判定し、
+     * ディレクトリ実体だけ再帰する（symlink 先は辿らない）。
+     */
     private static void deleteRecursively(File path) {
-        if (path == null || !path.exists()) return;
-        if (path.isDirectory()) {
+        if (path == null) return;
+        java.nio.file.Path p = path.toPath();
+        boolean isSymlink = Files.isSymbolicLink(p);
+        if (!isSymlink && !Files.exists(p, LinkOption.NOFOLLOW_LINKS)) return;
+        // 実ディレクトリのみ再帰（symlink はディレクトリでも辿らずリンク自体を消す）。
+        if (!isSymlink && Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)) {
             File[] children = path.listFiles();
             if (children != null) {
                 for (File c : children) deleteRecursively(c);
             }
         }
-        //noinspection ResultOfMethodCallIgnored
-        path.delete();
+        try {
+            Files.deleteIfExists(p);
+        } catch (IOException e) {
+            // best-effort: 消せなくても後続の mkdirs / symlink 側で顕在化する
+            Log.w(TAG, "delete failed: " + path, e);
+        }
     }
 
     private static String statusLabel(int status) {
