@@ -59,6 +59,10 @@ cmake_build/
 # Downloaded on demand by scripts/pad-local-install.sh
 /tools/bundletool-all-*.jar
 
+# Python (REPL client のキャッシュ)
+__pycache__/
+*.pyc
+
 # Misc
 .DS_Store
 Thumbs.db
