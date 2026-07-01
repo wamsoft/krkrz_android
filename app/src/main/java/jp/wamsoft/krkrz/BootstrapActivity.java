@@ -3,6 +3,7 @@ package jp.wamsoft.krkrz;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.content.res.AssetManager;
 import android.os.Bundle;
@@ -62,12 +63,48 @@ public class BootstrapActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // KrkrzActivity (SDL) と同じ向きにローディング画面も合わせる。値は
+        // R.string.sdl_orientations (resOverride で差し替え可)。SDL の hint 解釈に合わせて
+        // ActivityInfo の向きへマップする。
+        setRequestedOrientation(orientationFromSdlHint(getString(R.string.sdl_orientations)));
+
         setContentView(R.layout.bootstrap);
 
         statusText = findViewById(R.id.bootstrap_status);
         progressBar = findViewById(R.id.bootstrap_progress);
 
         new Thread(this::runCopyThenLaunch, "BootstrapCopy").start();
+    }
+
+    /**
+     * SDL_HINT_ORIENTATIONS の値 (空白区切りの LandscapeLeft/LandscapeRight/Portrait/
+     * PortraitUpsideDown) を Activity の requestedOrientation にマップする。
+     * SDL の setOrientationBis と同じ意味付け (両向き→USER_*、片方→固定)。
+     */
+    private static int orientationFromSdlHint(String hint) {
+        if (hint == null || hint.trim().isEmpty()) {
+            return ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+        }
+        boolean ll = false, lr = false, p = false, pu = false;
+        for (String t : hint.trim().split("\\s+")) {
+            switch (t) {
+                case "LandscapeLeft":       ll = true; break;
+                case "LandscapeRight":      lr = true; break;
+                case "Portrait":            p = true;  break;
+                case "PortraitUpsideDown":  pu = true; break;
+                default: break;
+            }
+        }
+        boolean land = ll || lr, port = p || pu;
+        if (land && port) return ActivityInfo.SCREEN_ORIENTATION_FULL_USER;
+        if (ll && lr)     return ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE;
+        if (p && pu)      return ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT;
+        if (ll)           return ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+        if (lr)           return ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
+        if (p)            return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+        if (pu)           return ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT;
+        return ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
     }
 
     private void runCopyThenLaunch() {

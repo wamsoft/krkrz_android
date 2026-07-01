@@ -48,4 +48,15 @@
     <string name="bootstrap_status_fmt">%1$s  (%2$d / %3$d)</string>
     <!-- PAD add-on download progress (byte totals shown in MB) -->
     <string name="bootstrap_status_mb_fmt">%1$s  (%2$d / %3$d MB)</string>
+
+    <!--
+      許可する画面の向き (SDL_HINT_ORIENTATIONS / env: SDL_ORIENTATIONS)。
+      空白区切りで LandscapeLeft / LandscapeRight / Portrait / PortraitUpsideDown。
+      KrkrzActivity が super.onCreate 前に env へ流し、SDL がウィンドウ生成時に読む。
+      BootstrapActivity も同値で向きを合わせる。案件ごとに resOverride の
+      values/strings.xml で差し替え可 (例: 縦向きは "Portrait PortraitUpsideDown")。
+      既定は横画面両向き (端末を 180° 回しても追従。端末の自動回転設定は尊重)。
+      空にすると SDL 既定 (ウィンドウ縦横比から自動判定) になる。
+    -->
+    <string name="sdl_orientations" translatable="false">LandscapeRight LandscapeLeft</string>
 </resources>

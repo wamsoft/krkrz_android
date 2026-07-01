@@ -51,6 +51,19 @@ public class KrkrzActivity extends SDLActivity {
         // を load していないため、依存順 (SDL3 → krkrz) に手動で先 load する。
         // どちらも System.loadLibrary は idempotent なので super 側で重複呼出
         // しても問題ない。
+        // 許可する画面の向きを SDL に伝える。SDL は super.onCreate 内で native スレッドを
+        // 起動し、ウィンドウ生成時に SDL_HINT_ORIENTATIONS (env: SDL_ORIENTATIONS) を読む。
+        // 「SDL init より前」= super.onCreate より前に env へ流す必要がある。値は
+        // R.string.sdl_orientations (resOverride で案件ごとに差し替え可)。空なら SDL 既定。
+        String orientations = getString(R.string.sdl_orientations);
+        if (orientations != null && !orientations.trim().isEmpty()) {
+            try {
+                android.system.Os.setenv("SDL_ORIENTATIONS", orientations.trim(), true);
+            } catch (android.system.ErrnoException e) {
+                android.util.Log.w("KrkrzActivity", "setenv SDL_ORIENTATIONS failed", e);
+            }
+        }
+
         System.loadLibrary("SDL3");
         System.loadLibrary("krkrz");
 
