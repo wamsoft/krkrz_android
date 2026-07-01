@@ -4,29 +4,36 @@
     android:layout_height="match_parent"
     android:background="@android:color/black">
 
+    <!--
+      背景ローディング画像。BootstrapActivity が assets の loading.jpg / loading.png を
+      読み込んでセットする (無ければ黒背景のまま)。centerCrop で全画面を埋める。
+    -->
+    <ImageView
+        android:id="@+id/bootstrap_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:contentDescription="@null" />
+
+    <!--
+      進捗類は画面下部にまとめ、半透明スクリムを敷いて背景画像の邪魔をしないようにする。
+    -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="center"
+        android:layout_gravity="bottom"
         android:orientation="vertical"
+        android:background="#99000000"
         android:paddingLeft="32dp"
-        android:paddingRight="32dp">
-
-        <TextView
-            android:id="@+id/bootstrap_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:text="@string/bootstrap_title"
-            android:textColor="@android:color/white"
-            android:textSize="20sp" />
+        android:paddingRight="32dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="24dp">
 
         <ProgressBar
             android:id="@+id/bootstrap_progress"
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
             android:max="1"
             android:progress="0" />
 
@@ -34,11 +41,15 @@
             android:id="@+id/bootstrap_status"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="8dp"
             android:ellipsize="middle"
             android:singleLine="true"
             android:text="@string/bootstrap_status_initial"
-            android:textColor="#cccccc"
+            android:textColor="#ffffff"
+            android:shadowColor="#000000"
+            android:shadowDx="0"
+            android:shadowDy="0"
+            android:shadowRadius="4"
             android:textSize="14sp" />
     </LinearLayout>
 </FrameLayout>

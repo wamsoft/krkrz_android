@@ -6,10 +6,14 @@ import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.content.res.AssetManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -56,8 +60,12 @@ public class BootstrapActivity extends Activity {
     /** 1 回の I/O バッファ。xp3 は数百 MB あるので大きめに取る。 */
     private static final int COPY_BUFFER_BYTES = 1 << 20; // 1 MiB
 
+    /** ローディング背景に使う assets 直下の画像候補 (先に見つかったものを使用)。 */
+    private static final String[] BACKGROUND_ASSET_CANDIDATES = { "loading.jpg", "loading.png" };
+
     private TextView statusText;
     private ProgressBar progressBar;
+    private ImageView backgroundImage;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @Override
@@ -73,8 +81,67 @@ public class BootstrapActivity extends Activity {
 
         statusText = findViewById(R.id.bootstrap_status);
         progressBar = findViewById(R.id.bootstrap_progress);
+        backgroundImage = findViewById(R.id.bootstrap_bg);
 
+        loadBackgroundAsync();
         new Thread(this::runCopyThenLaunch, "BootstrapCopy").start();
+    }
+
+    /**
+     * ローディング背景画像を assets から非同期に読み込んで表示する。
+     * {@link #BACKGROUND_ASSET_CANDIDATES} を順に探し、最初に見つかったものを
+     * 画面サイズに合わせてダウンサンプルして {@code bootstrap_bg} にセットする。
+     * 画像が無い案件 (sample 等) では何もせず黒背景のまま。
+     */
+    private void loadBackgroundAsync() {
+        new Thread(() -> {
+            final Bitmap bmp = decodeAssetBackground();
+            if (bmp != null) {
+                mainHandler.post(() -> {
+                    if (backgroundImage != null) backgroundImage.setImageBitmap(bmp);
+                });
+            }
+        }, "BootstrapBg").start();
+    }
+
+    private Bitmap decodeAssetBackground() {
+        AssetManager am = getAssets();
+        DisplayMetrics dm = getResources().getDisplayMetrics();
+        int reqW = Math.max(1, dm.widthPixels);
+        int reqH = Math.max(1, dm.heightPixels);
+        for (String name : BACKGROUND_ASSET_CANDIDATES) {
+            try {
+                BitmapFactory.Options bounds = new BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                try (InputStream in = am.open(name)) {
+                    BitmapFactory.decodeStream(in, null, bounds);
+                }
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) continue;
+
+                BitmapFactory.Options opts = new BitmapFactory.Options();
+                opts.inSampleSize = calcInSampleSize(bounds.outWidth, bounds.outHeight, reqW, reqH);
+                try (InputStream in = am.open(name)) {
+                    Bitmap bmp = BitmapFactory.decodeStream(in, null, opts);
+                    if (bmp != null) {
+                        Log.i(TAG, "loading background = " + name
+                                + " (" + bmp.getWidth() + "x" + bmp.getHeight() + ")");
+                        return bmp;
+                    }
+                }
+            } catch (IOException e) {
+                // 見つからない候補は無視して次へ
+            }
+        }
+        return null; // 無ければ黒背景のまま
+    }
+
+    /** centerCrop 品質を保ちつつメモリを抑えるダウンサンプル係数 (画面より少し大きめで止める)。 */
+    private static int calcInSampleSize(int srcW, int srcH, int reqW, int reqH) {
+        int sample = 1;
+        while ((srcH / (sample * 2)) >= reqH && (srcW / (sample * 2)) >= reqW) {
+            sample *= 2;
+        }
+        return sample;
     }
 
     /**
