@@ -49,6 +49,7 @@ help:
 	@echo "  make install-release-debug - Install Release APK signed with debug key"
 	@echo "  make pad-install     - Build AAB + install locally via bundletool --local-testing (PAD)"
 	@echo "  make pad-aab         - Build the Play Store AAB (base + PAD asset packs)"
+	@echo "  make pad-package     - Build a portable installer (app.apks + bundletool + scripts)"
 	@echo "  make run             - Install and launch app (launcher activity)"
 	@echo "  make debug           - Install and launch with debugger wait (-D)"
 	@echo "  make uninstall       - Uninstall app via adb"
@@ -101,6 +102,11 @@ pad-install: check-adb
 # Build the Play Store AAB (default Release variant; override with BUILD_TYPE=...).
 pad-aab:
 	VARIANT=$(if $(filter Debug,$(BUILD_TYPE)),Release,$(BUILD_TYPE)) PROJECT_DIR="$(PROJECT_DIR)" ./scripts/pad-build-aab.sh
+
+# Build a portable installer folder (app.apks + bundletool + install scripts) that can be
+# copied to any machine with Java + adb and installed without this repo. See the script.
+pad-package:
+	VARIANT=$(BUILD_TYPE) PROJECT_DIR="$(PROJECT_DIR)" ./scripts/pad-package-installer.sh
 
 # Release APK signed with the debug key (no release keystore required)
 release-debug:

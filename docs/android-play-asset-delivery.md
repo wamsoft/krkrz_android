@@ -103,6 +103,19 @@ PROJECT_DIR=d:/work/game/xxx ./scripts/pad-local-install.sh
 - ログ: `adb logcat -s BootstrapActivity:* PadAssetResolver:*` で各パックの `assetsPath` と padroot を確認。
 - `VARIANT=Release ./scripts/pad-local-install.sh` で Release AAB を検証可 (要 Release 署名)。
 
+## ポータブル手動インストーラ (このリポジトリ無しで配布)
+
+ビルド環境の無い任意の PC (Java + adb だけ) から手動インストールできる一式を作る:
+
+```bash
+PROJECT_DIR=d:/work/game/xxx ./scripts/pad-package-installer.sh   # 既定 Debug / VARIANT=Release も可
+```
+
+- 出力 `${PROJECT_DIR}/build/android/pad-installer/` に **app.apks (PAD パック同梱・署名済) + bundletool.jar + install.sh / install.bat + README.txt** を同梱。
+- このフォルダを丸ごと配布 → 配布先で `./install.sh` (Linux/macOS/Git Bash) か `install.bat` (Windows) を実行するだけ。**リポジトリ/ビルド環境不要**。
+- `.apks` は事前に build-apks --local-testing 済みなので、配布先は署名鍵不要・`bundletool install-apks` が base+config split の導入と asset pack のローカル push を行う。
+- `.apks` は数 GB (zip 圧縮効果ほぼ無し)。そのまま転送する。
+
 ## Play Store 配信
 
 ```bash
