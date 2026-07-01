@@ -951,6 +951,10 @@ make pad-install    # ローカル実機に入れて検証 (bundletool --local-t
 make pad-aab        # Play アップロード用 AAB を生成
 make pad-package    # 配布用インストーラ一式 (Java + adb だけで入る) を生成
 
+# REPL (adb 経由の TJS 対話シェル, Debug ビルド専用。詳細 docs/android-repl.md)
+make repl           # forward + nc で接続
+make repl-py        # forward + 高機能 Python クライアント (編集/履歴/複数行)
+
 # 変数の確認
 make vars
 

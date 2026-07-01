@@ -119,7 +119,11 @@ JNI ネイティブメソッドの実装は `JNIEXPORT` で書いておけば
 - `settings.gradle` が `padPacks[].name` から `${PROJECT_DIR}/build/android/assetpacks/<name>/` に asset pack モジュール (`com.android.asset-pack`) を**動的生成 + include**。`app/build.gradle` が `android.assetPacks` に紐付け、`packPad_<name>` タスクで各モジュールの `src/main/assets/` へコピー。パック名は `[a-z0-9_]+`。
 - `deliveryType` は `install-time` / `fast-follow` / `on-demand` (既定 on-demand)。fast-follow/on-demand は実ファイル展開され `assetsPath()` で絶対パスが取れる → 既存 `setAssetCacheDir()` にそのまま渡せる (**native 無改修・データコピー不要**)。install-time は AssetManager 名前空間なので既存 Bootstrap コピー経路が拾う。
 - ランタイム: `BootstrapActivity` が `PadAssetResolver` で fetch パック (`R.array.pad_fetch_packs`) を取得 (進捗は既存 ProgressBar) し `<filesDir>/padroot/` に symlink 統合 → `KrkrzActivity` へ Intent extra `assetRoot` で渡す。`padPacks` 無しのサンプルは従来動作 (後方互換)。
-- ローカル検証は `make pad-install` (bundletool `--local-testing`)、Play 用 AAB は `make pad-aab`。詳細は `docs/android-play-asset-delivery.md`。
+- ローカル検証は `make pad-install` (bundletool `--local-testing`)、Play 用 AAB は `make pad-aab`。ビルド環境不要の配布用一式は `make pad-package`。詳細は `docs/android-play-asset-delivery.md`。
+
+### REPL (adb 経由の TJS 対話シェル, Debug 専用)
+
+Debug ビルドのみ `KRKRZ_REPL=ON` (`app/src/main/cpp/CMakeLists.txt`、icline は `KRKRZ_REPL_LINE_EDIT=OFF` で回避)。engine 側 `tTVPReplSocketChannel` (krkrz_dev, `common/utils/ReplSocketChannel.*`) が abstract unix socket で「1行 TJS → 1行 JSON」を返す。`KrkrzActivity` が debuggable 時に env `KRKRZ_REPL_SOCKET=<applicationId>.repl` を設定して起動。接続は `make repl` (nc) / `make repl-py` (Python 高機能クライアント)。操作は本家 console REPL 準拠 (`.help`/`.depth`/`.compact`・括弧が閉じるまで複数行・行末 `\` 継続)。Release には REPL は入らない。詳細は `docs/android-repl.md`。
 
 ### 署名
 
