@@ -124,6 +124,10 @@ android {
             signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // native (libkrkrz.so 等) のデバッグシンボルを AAB に含め、Play がネイティブ
+            // クラッシュをシンボル化できるようにする。配信 APK からは除去されるので
+            // ユーザーの DL サイズは増えない。SYMBOL_TABLE=関数名まで / FULL=行番号まで(大)。
+            ndk { debugSymbolLevel 'SYMBOL_TABLE' }
         }
         releaseDebugSigned {
             initWith release
