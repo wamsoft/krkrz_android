@@ -2,6 +2,23 @@
 
 大容量の案件データ (xp3 アーカイブ・動画) を **Google Play Asset Delivery** で配信するための仕組みと手順。
 
+## コマンド早見表
+
+いずれも案件は `PROJECT_DIR` で指定。`BUILD_TYPE` (Makefile) / `VARIANT` (スクリプト) で Debug/Release を切替 (pad-install/pad-package は既定 Debug、pad-aab は Release)。
+
+| 目的 | コマンド |
+|---|---|
+| ローカル実機に入れて検証 (bundletool `--local-testing`) | `make pad-install` ( = `scripts/pad-local-install.sh` ) |
+| Play アップロード用 AAB を作る | `make pad-aab` ( = `scripts/pad-build-aab.sh` ) |
+| 配布用ポータブルインストーラを作る (配布先は Java + adb だけ) | `make pad-package` ( = `scripts/pad-package-installer.sh` ) |
+
+```bash
+# 例 (案件フォルダを指定して実行)
+PROJECT_DIR=d:/work/game/xxx make pad-install     # 実機で動作確認
+PROJECT_DIR=d:/work/game/xxx make pad-aab         # Play 用 AAB
+PROJECT_DIR=d:/work/game/xxx make pad-package     # 配布用一式
+```
+
 ## なぜ必要か
 
 - 案件データは数 GB になりうる (xp3 の合計が数 GB規模)。base APK / install-time の上限を超え、**そのままでは Play Store で配信できない**。
@@ -126,12 +143,22 @@ PROJECT_DIR=d:/work/game/xxx ./scripts/pad-build-aab.sh
 - **Play App Signing 有効が必須** (PAD の本番 fetch に必要)。
 - 事前準備 (アイコン・ストア掲載情報・プライバシーポリシー等) は案件側の「Androidリリース準備項目.txt」を参照。
 
+## リリースビルドの注意 (署名 / メモリ / シンボル)
+
+- **Release 署名**: `local.properties` の `RELEASE_STORE_FILE` / `RELEASE_STORE_PASSWORD` / `RELEASE_KEY_ALIAS` / `RELEASE_KEY_PASSWORD` (詳細は [README](../README.md) の Release 節)。**鍵の「鍵パスワード」がストアパスワードと別**なことがある → 署名時 `Cannot recover key` は鍵パスワード不一致。keystore に複数 alias がある場合は Play に登録した/登録する alias を選ぶ。
+- **Gradle ヒープ**: 数 GB の AAB 署名 (`signReleaseBundle` = `FinalizeBundleTask`) は既定 `-Xmx2048m` だと `OutOfMemoryError`。エラーは `Self-suppression not permitted` で本因が隠れるので `--stacktrace` で確認。`gradle.properties` を `-Xmx8192m` に設定済。
+- **native デバッグシンボル**: `app/build.gradle` の release に `ndk { debugSymbolLevel 'SYMBOL_TABLE' }` を設定済 → AAB の `BUNDLE-METADATA/.../debugsymbols/<abi>/libkrkrz.so.sym` 等が入り、Play がネイティブクラッシュを関数名までシンボル化する (配信 APK からは除去されるので DL サイズ不変。行番号まで要るなら `'FULL'`)。
+- **難読化 (R8)**: `minifyEnabled false` のまま (Java 層は極小・JNI/リフレクションの破損リスクが上回る)。Play Console の「難読化解除ファイルがありません」警告は**無視でOK** (難読化していないのでクラッシュは元々読める)。
+
 ## トラブルシュート
 
 - **パックが空でバンドルエラー**: `build/_temp/archive` の xp3 が未生成のまま `packPad_*` が走ると空になる。先に xp3 をビルドしてから AAB を作る。
 - **`assetsPath()` が null**: パックが COMPLETED 前。local-testing でも `install-apks` 経由でないと展開されない (素の `adb install apk` では install-time/fetch パックは来ない)。
 - **`app-config.json` を変えたのに反映されない**: 端末側 cache/pack は再インストールで更新。`scripts/pad-local-install.sh` を再実行する。
+- **`signBundle` が `Self-suppression not permitted` で失敗**: 実体は `OutOfMemoryError`。`gradle.properties` の `-Xmx` を上げる (本テンプレートは 8192m 設定済)。
+- **署名で `Cannot recover key`**: 鍵パスワード (`RELEASE_KEY_PASSWORD`) がストアと別。正しい鍵パスワード、または別 alias を指定する。
+- **AAB の出力先を間違える**: 出力は `build/android/app/outputs/bundle/<variant>/`。`make pad-*` / スクリプトは variant フォルダに限定して探す (bundle/ 全体を漁ると別 variant の古い AAB を拾う)。
 - **symlink 失敗**: 端末/FS が内部ストレージの symlink を拒否する場合 (通常無い)。その場合は native をマルチルート対応へ拡張する (保険案)。
-- **パック名の制約**: `[a-z0-9_]+` のみ (gradle module 名になるため)。
+- **パック名の制約**: `[a-z0-9_]+` のみ (gradle module 名になるため。名前自体は任意で、例の `krkrz_core` 等はサンプル)。
 
 [android-jni-plugin.md]: ./android-jni-plugin.md
