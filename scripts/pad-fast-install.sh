@@ -35,6 +35,12 @@ BUNDLETOOL_VERSION="${BUNDLETOOL_VERSION:-1.17.2}"
 BUNDLETOOL_JAR="$BUILD_SYSTEM_DIR/tools/bundletool-all-${BUNDLETOOL_VERSION}.jar"
 PYTHON="${PYTHON:-python}"
 
+# MSYS2 / Git-Bash は POSIX パス風の引数を Windows パスへ自動変換する。adb.exe に渡す
+# 端末側パス (例 /sdcard/Android/...) が C:/msys64/sdcard/... へ化けて push が失敗するのを防ぐ。
+# ローカル側パスは d:/ 形式なので無変換でそのまま通る。
+export MSYS2_ARG_CONV_EXCL='*'
+export MSYS_NO_PATHCONV=1
+
 # APP_ID: make から渡る。単体実行時は app-config.json から拾う (簡易 grep)。
 APP_ID="${APP_ID:-}"
 if [ -z "$APP_ID" ]; then
@@ -124,7 +130,12 @@ print(next((n for n in z.namelist() if n.split('/')[-1]==sys.argv[2]), ''))" "$A
     "$PYTHON" -c "import zipfile,sys
 zipfile.ZipFile(sys.argv[1]).extract(sys.argv[2], sys.argv[3])" "$APKS" "$entry" "$TMP"
     echo "  push ${name}-master.apk ..."
-    "$ADB" push "$TMP/$entry" "$LT/${name}-master.apk" >/dev/null
+    # /sdcard/Android/data/<pkg>/files/ へ直接 adb push すると、端末によっては
+    # fchown(0:0) 失敗でファイルが破棄される (ソースが Windows 側で uid/gid を持たないため)。
+    # 実 fs の /data/local/tmp へ push してから on-device cp で置く (bundletool と同じ結果)。
+    tmp_remote="/data/local/tmp/${name}-master.apk"
+    "$ADB" push "$TMP/$entry" "$tmp_remote" >/dev/null
+    "$ADB" shell "cp '$tmp_remote' '$LT/${name}-master.apk' && rm -f '$tmp_remote'" >/dev/null
     # 同 versionCode (1/1) では既存展開が再利用されてしまうので、展開先を消して再展開させる。
     "$ADB" shell "run-as $APP_ID rm -rf files/assetpacks/${name}" >/dev/null 2>&1 || true
     echo "${HASH[$name]}" > "$MARK/$name.sha"
