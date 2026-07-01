@@ -142,6 +142,9 @@ PROJECT_DIR=d:/work/game/xxx make pad-fast
 - 現行 `padPacks` に無い古いパック (rename/削除後) は端末から自動で掃除する。
 - 端末側のファイル確認・手動削除の手順は [android-adb-tips.md](android-adb-tips.md) を参照。
 
+> **仕組み・処理構造の詳細** (local-testing の実体・端末レイアウト・差分判定・再展開・symlink バグ)
+> は **[android-pad-fast-iteration.md](android-pad-fast-iteration.md)** にまとめてある。
+
 ## ポータブル手動インストーラ (このリポジトリ無しで配布)
 
 ビルド環境の無い任意の PC (Java + adb だけ) から手動インストールできる一式を作る:
