@@ -59,6 +59,9 @@ cmake_build/
 # Downloaded on demand by scripts/pad-local-install.sh
 /tools/bundletool-all-*.jar
 
+# Play publishing: OAuth refresh token cache (scripts/play-publish.py) — 機密
+/.play-oauth-token.json
+
 # Python (REPL client のキャッシュ)
 __pycache__/
 *.pyc

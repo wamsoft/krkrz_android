@@ -987,3 +987,21 @@ TJS から `PlayGames` クラスで Google Play Games (サインイン / 実績 
 > Play Games 対応をやるとき・切り替えの仕組みを知りたいときは
 > **[docs/android-play-games.md](docs/android-play-games.md)** を参照 (入口ドキュメント)。
 > Play Console の具体手順・TJS レシピ・API はそこからリンクしています。
+
+## Google Play Console 公開自動化
+
+コンソールを開かず `make` から **AAB アップロード / 現状照会 / トラック昇格 / 段階公開 /
+リリースノート管理**ができます (Play Developer API を Python で直叩き)。
+
+| 目的 | コマンド |
+|------|----------|
+| 現状照会 (読み取り専用・コンソール不要) | `make play-status` |
+| AAB を internal テストへ | `make play-upload` |
+| 本番へ昇格 + 段階公開 (再アップロード不要) | `make play-promote FROM=internal TO=production ROLLOUT=0.1` |
+| 段階公開率の増減 / 停止 | `make play-rollout FRACTION=0.5` / `make play-rollout HALT=1` |
+| 全言語リリースノート雛形生成 / 検査 | `make play-notes-new` / `make play-notes-check` |
+
+> 前提: `pip install -r scripts/requirements-play.txt` + 認証を `local.properties` に設定。
+> 認証は2方式で自動判定 — **ローカルは OAuth**（自分のアカウントでブラウザ同意 `PLAY_OAUTH_CLIENT_JSON`）、
+> **CI はサービスアカウント**（`PLAY_SERVICE_ACCOUNT_JSON`）。差分アップロードの有無・テスト→本番の流れ・
+> リリースノート運用・dry-run・トラブルシュートは **[docs/android-play-publishing.md](docs/android-play-publishing.md)** を参照。

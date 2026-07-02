@@ -38,7 +38,7 @@ GRADLE_ASSEMBLE := :$(MODULE):assemble$(BUILD_TYPE)
 GRADLE_INSTALL  := :$(MODULE):install$(BUILD_TYPE)
 GRADLE_BUNDLE   := :$(MODULE):bundle$(BUILD_TYPE)
 
-.PHONY: help vars build assemble bundle install reinstall uninstall run debug stop logcat clean clean-cmake distclean test connected devices check-adb check-appid release-debug install-release-debug pad-install pad-fast pad-aab pad-package repl repl-py
+.PHONY: help vars build assemble bundle install reinstall uninstall run debug stop logcat clean clean-cmake distclean test connected devices check-adb check-appid release-debug install-release-debug pad-install pad-fast pad-aab pad-package repl repl-py play-status play-upload play-promote play-rollout play-notes-new play-notes-check
 
 help:
 	@echo "Android Makefile (gradlew wrapper)"
@@ -63,6 +63,12 @@ help:
 	@echo "  make test            - Run unit tests (test$(BUILD_TYPE)UnitTest)"
 	@echo "  make connected       - Run instrumentation tests (connected$(BUILD_TYPE)AndroidTest)"
 	@echo "  make devices         - List adb devices"
+	@echo "  make play-status     - Show Play Console track state (read-only, no console needed)"
+	@echo "  make play-upload     - Upload release AAB to a track (TRACK=internal ROLLOUT=... STATUS=...)"
+	@echo "  make play-promote    - Promote a versionCode between tracks (FROM= TO= ROLLOUT=...)"
+	@echo "  make play-rollout    - Change staged rollout (TRACK= FRACTION=... | HALT=1)"
+	@echo "  make play-notes-new  - Generate release-note skeletons for all languages (VERSION=N)"
+	@echo "  make play-notes-check- Verify release notes are complete and <=500 chars (VERSION=N)"
 	@echo "  make vars            - Print resolved variables"
 	@echo "Variables (override as needed): MODULE, BUILD_TYPE, APP_ID, ADB, GRADLEW"
 	@echo "Examples:"
@@ -117,6 +123,41 @@ pad-aab:
 # copied to any machine with Java + adb and installed without this repo. See the script.
 pad-package:
 	VARIANT=$(BUILD_TYPE) PROJECT_DIR="$(PROJECT_DIR)" ./scripts/pad-package-installer.sh
+
+# ----- Google Play Console 公開自動化 (Play Developer API 直叩き) -----
+# 前提: サービスアカウント鍵を local.properties の PLAY_SERVICE_ACCOUNT_JSON に設定 +
+#       python -m pip install -r scripts/requirements-play.txt。詳細 docs/android-play-publishing.md。
+PY ?= python
+TRACK ?= internal
+PLAY_PUBLISH := PROJECT_DIR="$(PROJECT_DIR)" BUILD_SYSTEM_DIR="$(BUILD_SYSTEM_DIR)" APP_CONFIG_FILE="$(APP_CONFIG_FILE)" $(PY) "$(BUILD_SYSTEM_DIR)/scripts/play-publish.py"
+
+# 各トラックの現状 (versionCode / 状態 / 公開率 / ノート) を照会 (読み取り専用・コンソール不要)
+play-status:
+	$(PLAY_PUBLISH) status
+
+# release AAB をアップロードしトラックへ割り当て。TRACK=(既定 internal) STATUS= ROLLOUT= AAB= で調整。
+#   例: make play-upload                       (internal へ全公開)
+#       make play-upload TRACK=production ROLLOUT=0.1   (本番へ10%段階公開)
+play-upload:
+	$(PLAY_PUBLISH) upload --track "$(TRACK)" $(if $(STATUS),--status "$(STATUS)",) $(if $(ROLLOUT),--rollout "$(ROLLOUT)",) $(if $(AAB),--aab "$(AAB)",) $(if $(DRYRUN),--dry-run,)
+
+# 既存 versionCode を別トラックへ昇格 (再アップロード不要)。FROM= TO= (必須) ROLLOUT= 任意。
+#   例: make play-promote FROM=internal TO=production ROLLOUT=0.1
+play-promote:
+	$(PLAY_PUBLISH) promote --from "$(FROM)" --to "$(TO)" $(if $(ROLLOUT),--rollout "$(ROLLOUT)",) $(if $(DRYRUN),--dry-run,)
+
+# 段階公開率の増減 / 完了 / 停止。TRACK=(既定 production) FRACTION= または HALT=1。
+#   例: make play-rollout FRACTION=0.5 / make play-rollout FRACTION=1.0 / make play-rollout HALT=1
+play-rollout: TRACK := production
+play-rollout:
+	$(PLAY_PUBLISH) rollout --track "$(TRACK)" $(if $(HALT),--halt,--fraction "$(FRACTION)") $(if $(DRYRUN),--dry-run,)
+
+# 全サポート言語のリリースノート雛形を一括生成 / 検査。VERSION=(既定 app-config.json の versionCode)。
+play-notes-new:
+	$(PLAY_PUBLISH) notes-new $(if $(VERSION),--version "$(VERSION)",)
+
+play-notes-check:
+	$(PLAY_PUBLISH) notes-check $(if $(VERSION),--version "$(VERSION)",)
 
 # Release APK signed with the debug key (no release keystore required)
 release-debug:

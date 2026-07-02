@@ -1,0 +1,6 @@
+# Google Play Console 公開自動化 (scripts/play-publish.py) の依存。
+#   python -m pip install -r scripts/requirements-play.txt
+google-api-python-client>=2.100
+google-auth>=2.20
+# OAuth ユーザー認可 (ローカル・ブラウザ同意) 方式に必要。サービスアカウントのみなら不要。
+google-auth-oauthlib>=1.2

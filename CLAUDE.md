@@ -132,6 +132,15 @@ JNI ネイティブメソッドの実装は `JNIEXPORT` で書いておけば
 - **軽量イテレーション `make pad-fast`**: コードだけ直すとき用。素の `assembleDebug -PpadLocalTesting` (base APK に `local_testing_dir` meta-data を注入する debug manifest overlay `app/src/padlocal/AndroidManifest.xml`。release には載らない) を `adb install -r` し、pack は内容ハッシュ (`assetpacks/.fastpush/<name>.sha`) で差分判定して **変わった pack だけ** bundletool で再 push (+ 端末の `files/assetpacks/<name>` を消して再展開)。データ未変更なら pack 無操作で数秒。前提: 先に一度 `make pad-install`。**仕組み・処理構造・実機実測 (local-testing の meta-data / 端末レイアウト / 1-1 展開キーの落とし穴 / 差分判定) の詳細は `docs/android-pad-fast-iteration.md`**。adb でのファイル確認/削除は `docs/android-adb-tips.md`。
 - 注意: PAD の symlink farm (`PadAssetResolver.buildSymlinkFarm`) は padroot 作り直し時に **ぶら下がり symlink** も消す必要があるため、削除判定は `Files.exists(..., NOFOLLOW_LINKS)` ベース (`File#exists()` は symlink を辿るので不可)。pack 差し替え時に踏む。
 
+### Google Play Console 公開自動化
+
+`scripts/play-publish.py` (Play Developer API v3 = androidpublisher を Python 直叩き) を `make` から使い、コンソール無しで AAB アップロード/現状照会/トラック昇格/段階公開/リリースノート管理を行う。`make play-status`(読み取り専用) / `play-upload` / `play-promote` / `play-rollout` / `play-notes-new` / `play-notes-check`。
+
+- **認証は2方式・自動判定**: ローカルは **OAuth ユーザー認可** (`PLAY_OAUTH_CLIENT_JSON`=デスクトップアプリの OAuth クライアント JSON、初回ブラウザ同意→`.play-oauth-token.json` に refresh token キャッシュ)、CI は **サービスアカウント** (`PLAY_SERVICE_ACCOUNT_JSON`)。両方あればサービスアカウント優先、`PLAY_AUTH=service|oauth` で強制。すべて `local.properties` (gitignore 済) から読む。依存は `scripts/requirements-play.txt`。
+- **設定解決は gradle/Makefile と同一**: packageName=`app-config.json` の applicationId、PROJECT_DIR/APP_CONFIG_FILE も同規則。既定トラック `internal` (rollout だけ `production`)。
+- **リリースノートは案件側 `${PROJECT_DIR}/dist/playstore/whatsnew/<versionCode>/<locale>.txt`** (+ `default.txt` フォールバック)。言語リストは `app/src/main/res` + resOverride の `values-*` から Play 言語コードへ自動導出 (専用キー無し=単一ソース)。各 500 文字以内。
+- 差分アップロード API は無い (毎回フル AAB・versionCode 単調増加)。ユーザー DL は Play が自動 delta 化。`upload`/`promote`/`rollout` は `DRYRUN=1` で validate のみ。詳細は `docs/android-play-publishing.md`。
+
 ### REPL (adb 経由の TJS 対話シェル, Debug 専用)
 
 Debug ビルドのみ `KRKRZ_REPL=ON` (`app/src/main/cpp/CMakeLists.txt`、icline は `KRKRZ_REPL_LINE_EDIT=OFF` で回避)。engine 側 `tTVPReplSocketChannel` (krkrz_dev, `common/utils/ReplSocketChannel.*`) が abstract unix socket で「1行 TJS → 1行 JSON」を返す。`KrkrzActivity` が debuggable 時に env `KRKRZ_REPL_SOCKET=<applicationId>.repl` を設定して起動。接続は `make repl` (nc) / `make repl-py` (Python 高機能クライアント)。操作は本家 console REPL 準拠 (`.help`/`.depth`/`.compact`・括弧が閉じるまで複数行・行末 `\` 継続)。Release には REPL は入らない。詳細は `docs/android-repl.md`。
