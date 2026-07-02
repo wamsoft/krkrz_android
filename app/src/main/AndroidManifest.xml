@@ -41,6 +41,7 @@
     android:hardwareAccelerated="true"
     tools:targetApi="35">
 
+    <!-- PLAYGAMES:BEGIN  (app-config.json の cmake.plugins に "playgames" が無いビルドでは build.gradle がこのブロックを除去する。gms リソース/クラスを参照するため) -->
     <!-- Google Play Games Services: Play Console で発行された App ID を strings.xml の games_app_id に設定する -->
     <meta-data
         android:name="com.google.android.gms.games.APP_ID"
@@ -48,6 +49,7 @@
     <meta-data
         android:name="com.google.android.gms.version"
         android:value="@integer/google_play_services_version" />
+    <!-- PLAYGAMES:END -->
 
     <!--
         BootstrapActivity をランチャーにして、assets/*.xp3 を `<filesDir>/assets/`
@@ -82,10 +84,12 @@
         android:name="jp.wamsoft.krkrz.ui.LicenseActivity"
         android:exported="false"
         android:parentActivityName="jp.wamsoft.krkrz.KrkrzActivity" />
+    <!-- PLAYGAMES:BEGIN  (playgames 無効ビルドでは build.gradle が除去。実体クラスは app/src/playgames/java 側にしか無いため) -->
     <activity
         android:name="jp.wamsoft.krkrz.ui.PlayGamesAdminActivity"
         android:exported="false"
         android:parentActivityName="jp.wamsoft.krkrz.KrkrzActivity" />
+    <!-- PLAYGAMES:END -->
 </application>
 
 </manifest>

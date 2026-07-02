@@ -18,9 +18,7 @@ import com.google.android.material.navigation.NavigationView;
 import org.libsdl.app.SDLActivity;
 import org.libsdl.app.SDLSurface;
 
-import jp.wamsoft.krkrz.playgames.PlayGamesBridge;
 import jp.wamsoft.krkrz.ui.LicenseActivity;
-import jp.wamsoft.krkrz.ui.PlayGamesAdminActivity;
 import jp.wamsoft.krkrz.ui.SettingsActivity;
 import jp.wamsoft.krkrz.virtualpad.VirtualPadPrefs;
 
@@ -104,7 +102,8 @@ public class KrkrzActivity extends SDLActivity {
         installSideMenuOverlay();
 
         setAssetManager(getAssets());
-        PlayGamesBridge.initialize(this);
+        // Play Games 連携は PlayGamesHook 経由 (有効ビルドのみ実処理、無効ビルドは no-op)。
+        PlayGamesHook.initialize(this);
 
         // 仮想パッドの SharedPreferences 値を native へ流す。Set* は g_state ではなく
         // モジュールレベル atomic を更新するので、virtualpad::Init() より早く呼ばれても
@@ -159,19 +158,20 @@ public class KrkrzActivity extends SDLActivity {
         decorContent.addView(drawer);
 
         NavigationView nav = drawer.findViewById(R.id.nav_view);
+        // Play Games 連携が組み込まれていないビルドではメニュー項目を隠す。
+        android.view.MenuItem pgItem = nav.getMenu().findItem(R.id.menu_playgames);
+        if (pgItem != null) pgItem.setVisible(PlayGamesHook.isEnabled());
         configureSideMenuLayer(drawer, nav);
         nav.setNavigationItemSelectedListener(item -> {
             int id = item.getItemId();
-            Intent intent = null;
-            if (id == R.id.menu_settings) {
-                intent = new Intent(this, SettingsActivity.class);
-            } else if (id == R.id.menu_license) {
-                intent = new Intent(this, LicenseActivity.class);
-            } else if (id == R.id.menu_playgames) {
-                intent = new Intent(this, PlayGamesAdminActivity.class);
-            }
             drawer.closeDrawer(GravityCompat.START);
-            if (intent != null) startActivity(intent);
+            if (id == R.id.menu_settings) {
+                startActivity(new Intent(this, SettingsActivity.class));
+            } else if (id == R.id.menu_license) {
+                startActivity(new Intent(this, LicenseActivity.class));
+            } else if (id == R.id.menu_playgames) {
+                PlayGamesHook.openAdmin(this);
+            }
             return true;
         });
 

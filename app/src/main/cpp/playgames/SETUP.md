@@ -280,14 +280,12 @@ JNI ブリッジ C++ をビルド時自動生成する。
 
 ---
 
-## 7. アンインストール / 機能オフ手順
+## 7. 機能オフ手順
 
-プラグインを一時的に切る場合:
+**`app-config.json` の `cmake.plugins` と `staticPlugins` から `"playgames"` を外すだけ**。
+これだけで `app/build.gradle` が gms 依存・gms を使う Java (`app/src/playgames/java`)・
+Manifest の Play Games エントリ・drawer メニュー項目を自動的に全部落とす
+(`app/build.gradle` / `AndroidManifest.xml` / Java を手で編集する必要は無い)。
 
-1. `myapp.cmake` から `playgames` を `TVP_PLUGINS` / `TVP_PLUGINS_STATIC` から削除
-2. `app/build.gradle` から `play-services-games-v2` 等の依存を削除
-3. `KrkrzActivity.java` の `PlayGamesBridge.initialize(this)` 行をコメントアウト
-4. `make clean && make build`
-
-Java ソース (`app/src/main/java/jp/wamsoft/krkrz/playgames/`) は残しておいても、
-Gradle の依存が無いとコンパイルエラーになるので合わせて削除/退避が必要。
+案件を切り替えたら `make clean-cmake` を推奨。仕組みの詳細は
+[`docs/android-play-games.md`](../../../../../docs/android-play-games.md) を参照。

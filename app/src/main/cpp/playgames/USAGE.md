@@ -417,6 +417,7 @@ PlayGames.showSnapshotsUI(void, "セーブ選択", true, true, 0);
 
 - TJS API 宣言 (この一覧): `manual.tjs`
 - C++ 実装: `Main.cpp` (NCB 登録) + `PlayGamesAuth.cpp` / `PlayGamesAchievements.cpp` / `PlayGamesSnapshots.cpp` (各サブシステム)
-- Java 実装: `app/src/main/java/jp/wamsoft/krkrz/playgames/PlayGames*.java`
-- Android 管理画面: `app/src/main/java/jp/wamsoft/krkrz/ui/PlayGamesAdminActivity.java`
+- Java 実装: `app/src/playgames/java/jp/wamsoft/krkrz/playgames/PlayGames*.java` (有効ビルドのみコンパイル)
+- Android 管理画面: `app/src/playgames/java/jp/wamsoft/krkrz/ui/PlayGamesAdminActivity.java`
+- 入口ドキュメント (有効/無効の仕組み含む): `docs/android-play-games.md`
 - セットアップ手順: `SETUP.md`

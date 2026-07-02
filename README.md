@@ -526,7 +526,7 @@ make install-release-debug
 > あくまで動作検証専用です。Play 配布用には通常の `assembleRelease` / `bundleRelease`
 > (release キーストア署名) を使用してください。
 > また、Google Play Games Services を利用する場合は debug キーストアの SHA-1 も
-> Play Console 側に登録しておく必要があります (後述「Google Play Games Services プラグイン」参照)。
+> Play Console 側に登録しておく必要があります ([docs/android-play-games.md](docs/android-play-games.md) 参照)。
 
 ### 6. 署名の検証
 
@@ -977,61 +977,13 @@ make devices ADB="/c/Android/sdk/platform-tools/adb"
 メモ
 - Windows の場合は Git Bash / MSYS2 などの GNU Make 環境での実行を推奨します。`mingw32-make` でも可。
 
-## Google Play Games Services プラグイン
+## Google Play Games Services (Play Games)
 
-`app/src/main/cpp/playgames/` および `app/src/main/java/jp/wamsoft/krkrz/playgames/` に
-Play Games Services 連携プラグインが組み込まれています。
-TJS から `PlayGames` クラスでアクセスできます (API 詳細は
-`app/src/main/cpp/playgames/manual.tjs` 参照)。
+TJS から `PlayGames` クラスで Google Play Games (サインイン / 実績 / クラウドセーブ) を
+使えます。**有効 / 無効は `app-config.json` の `cmake.plugins` に `"playgames"` を入れるか
+外すかの 1 スイッチ**で切り替わり、無効にすると gms 依存も Manifest エントリも drawer メニューも
+一切入りません (`app/build.gradle` や Manifest を手で触る必要なし)。
 
-### 1. Play Console セットアップ
-
-1. [Google Play Console](https://play.google.com/console/) で対象アプリの「ゲームサービス」を有効化
-2. ゲームサービス用の **App ID** (10 桁前後の数値) を取得
-3. 必要に応じて実績 / セーブゲーム機能を有効化
-
-### 2. App ID をアプリに設定
-
-`app/src/main/res/values/strings.xml` の `games_app_id` を取得した ID に書き換えます。
-
-```xml
-<string name="games_app_id" translatable="false">1234567890</string>
-```
-
-未設定 (`0000000000` のまま) でもビルドは通りますが、TJS から `PlayGames` API を呼ぶと
-SDK 初期化失敗のエラーが返ります。
-
-### 3. SHA-1 フィンガープリント登録
-
-Play Console の「OAuth 2.0 クライアント」に、署名鍵 (`release-key.jks`) の SHA-1 を
-登録する必要があります。
-
-```bash
-keytool -list -v -keystore release-key.jks -alias my-key-alias
-```
-
-デバッグビルドで動作確認する場合は、Android Studio が生成する debug キーストア
-(`~/.android/debug.keystore`、パスワード `android`) の SHA-1 も登録します。
-
-### 4. テスター登録
-
-Play Games Services はリリース前 (テスト中) は明示的にテスターとして登録した
-Google アカウントでのみ動作します。Play Console > ゲームサービス > テスター で
-追加してください。
-
-### 5. プラグインの有効/無効切り替え
-
-プラグイン C++ は `myapp.cmake` の `TVP_PLUGINS` / `TVP_PLUGINS_STATIC` から
-`playgames` を外せばビルド対象外になります (Java 側のソースは残ったままでも
-SDK が初期化されないだけなので無害)。Java 依存を削るには `app/build.gradle` の
-`com.google.android.gms:play-services-games-v2` 行も削除します。
-
-### 詳細資料
-
-- [`app/src/main/cpp/playgames/SETUP.md`](app/src/main/cpp/playgames/SETUP.md):
-  Play Console セットアップの詳細手順、テスト用チェックリスト、
-  トラブルシューティング、拡張ロードマップ
-- [`app/src/main/cpp/playgames/manual.tjs`](app/src/main/cpp/playgames/manual.tjs):
-  TJS 側 API リファレンス
-- [`docs/android-jni-plugin.md`](docs/android-jni-plugin.md):
-  Android 用 JNI プラグインを **追加で** 作るときの汎用テンプレート手順
+> Play Games 対応をやるとき・切り替えの仕組みを知りたいときは
+> **[docs/android-play-games.md](docs/android-play-games.md)** を参照 (入口ドキュメント)。
+> Play Console の具体手順・TJS レシピ・API はそこからリンクしています。

@@ -65,6 +65,13 @@ def appConfig = new JsonSlurper().parse(configFile)
 def padPacksConfig = (appConfig.padPacks ?: []) as List
 def padPackNames = padPacksConfig.collect { it.name as String }
 
+// --- Play Games feature toggle (single source: presence of "playgames" in cmake.plugins) ---
+// The native TJS binding (app/src/main/cpp/playgames) is already gated by cmake.plugins.
+// We derive the whole Java/gms/Manifest surface from the same flag so a project either has
+// Play Games fully wired or not at all — no separate config key (avoids duplication).
+def playGamesEnabled = ((appConfig.cmake?.plugins ?: []) as List).contains('playgames')
+logger.lifecycle("[playGames] ${playGamesEnabled ? 'enabled' : 'disabled'} (from app-config.json cmake.plugins)")
+
 // --- apk: rename outputs (<baseName>-<versionName>-<variant>.{apk,aab}) ---
 def apkConfig = appConfig.apk
 def apkBaseNameFull = null  // "<baseName>-<versionName>"
@@ -173,6 +180,29 @@ if (project.hasProperty('padLocalTesting')) {
     android.sourceSets.getByName('debug').manifest.srcFile(
             "${buildSystemDir}/app/src/padlocal/AndroidManifest.xml")
     logger.lifecycle("[padLocalTesting] debug manifest overlay enabled (meta-data local_testing_dir)")
+}
+
+// --- Play Games: include/exclude the gms-touching layer based on playGamesEnabled ---
+// The gms-importing Java (jp.wamsoft.krkrz.playgames.* / ui.PlayGamesAdminActivity) and the
+// real PlayGamesHook live under app/src/playgames/java; a no-op PlayGamesHook stub lives under
+// app/src/nogames/java. Exactly one is added to the main source set so KrkrzActivity (which only
+// references PlayGamesHook) always compiles, while gms is only pulled in when enabled.
+if (playGamesEnabled) {
+    android.sourceSets.getByName('main').java.srcDir("${buildSystemDir}/app/src/playgames/java")
+} else {
+    android.sourceSets.getByName('main').java.srcDir("${buildSystemDir}/app/src/nogames/java")
+    // The committed AndroidManifest keeps the Play Games entries (gms meta-data + admin activity)
+    // wrapped in PLAYGAMES:BEGIN/END markers. When disabled those reference gms resources/classes
+    // that are not present, so strip the marked blocks into a generated manifest and use that.
+    // (Generation only happens on the opt-out path; enabled builds use the committed manifest
+    // as-is, which keeps padlocal's debug overlay from colliding with a main-manifest override.)
+    def strippedManifest = layout.buildDirectory.file('generated/manifest/AndroidManifest.xml').get().asFile
+    strippedManifest.parentFile.mkdirs()
+    def baseManifest = new File("${buildSystemDir}/app/src/main/AndroidManifest.xml").text
+    strippedManifest.text = baseManifest.replaceAll(
+            /(?s)<!--\s*PLAYGAMES:BEGIN.*?PLAYGAMES:END\s*-->\r?\n?/, '')
+    android.sourceSets.getByName('main').manifest.srcFile(strippedManifest)
+    logger.lifecycle("[playGames] disabled: stripped Play Games manifest entries -> ${strippedManifest}")
 }
 
 // --- assetPack / padPacks: copy engine shared by in-APK assets and PAD asset packs ---
@@ -539,10 +569,13 @@ dependencies {
     // Play Asset Delivery runtime (fetch + locate fast-follow/on-demand packs).
     // Referenced unconditionally by BootstrapActivity; a no-op when padPacks is absent.
     implementation 'com.google.android.play:asset-delivery:2.3.0'
-    // Google Play Games Services (v2)
-    implementation 'com.google.android.gms:play-services-games-v2:20.1.2'
-    implementation 'com.google.android.gms:play-services-auth:21.2.0'
-    implementation 'com.google.android.gms:play-services-tasks:18.2.0'
+    // Google Play Games Services (v2) — only when playgames is enabled in app-config.json.
+    // Kept out entirely otherwise so opt-out projects ship no gms code (see playGamesEnabled).
+    if (playGamesEnabled) {
+        implementation 'com.google.android.gms:play-services-games-v2:20.1.2'
+        implementation 'com.google.android.gms:play-services-auth:21.2.0'
+        implementation 'com.google.android.gms:play-services-tasks:18.2.0'
+    }
     fileTree(dir: 'libs', include: ['*.aar']).each { file ->
         implementation files(file)
     }

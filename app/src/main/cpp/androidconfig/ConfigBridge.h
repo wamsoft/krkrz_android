@@ -12,8 +12,9 @@
 //       KrkrzAndroidGetVolume(key)         -> int (0-100)
 //       KrkrzAndroidSetVolume(key, value)  -> void
 //
-// JNI_OnLoad は playgames プラグインが同 libkrkrz.so 内で既に定義しているため、
-// ここでは定義しない。JavaVM は各 JNI 呼び出し時に env->GetJavaVM で取得・キャッシュする。
+// JNI_OnLoad はここでは定義しない (SDL / playgames 等と衝突させないため、かつ不要)。
+// JavaVM は androidconfig 自身の JNI 呼び出しに渡る env から env->GetJavaVM で取得・
+// キャッシュするので、playgames プラグインの有無 (app-config.json で外せる) に依存しない。
 
 #pragma once
 

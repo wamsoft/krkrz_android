@@ -93,12 +93,13 @@ make vars                     # 解決された MODULE/BUILD_TYPE/ADB/APP_ID を
 Java 依存は `app/build.gradle` に直接書く (krkrz_dev 側ではなくアプリ側で抱える方針)。
 
 例: `playgames` プラグイン (Google Play Games Services)
-- C++: `app/src/main/cpp/playgames/` (Main.cpp + JniBridge.cpp + サブシステムごと)
-- Java: `app/src/main/java/jp/wamsoft/krkrz/playgames/` (PlayGamesBridge ほか)
-- `app/build.gradle` に `com.google.android.gms:play-services-games-v2` 依存追加
-- `app/src/main/res/values/strings.xml` の `games_app_id` に Play Console の App ID を設定
-- `AndroidManifest.xml` に `com.google.android.gms.games.APP_ID` meta-data 追加
-- 運用手順 (Play Console セットアップ・テスト・拡張): `app/src/main/cpp/playgames/SETUP.md`
+- **有効/無効は `app-config.json` の `cmake.plugins` に `"playgames"` があるかの 1 スイッチ** (専用キー無し)。無効時は build.gradle が gms 依存・gms を使う Java・Manifest エントリ・drawer メニューを全部落とす
+- C++: `app/src/main/cpp/playgames/` (Main.cpp + JniBridge.cpp + サブシステムごと、static plugin)
+- gms を使う Java は `app/src/playgames/java/` に隔離 (有効時のみ main の srcDir に追加)。無効時は `app/src/nogames/java/` の no-op stub を使う。`KrkrzActivity` は両者共通の facade `jp.wamsoft.krkrz.PlayGamesHook` 経由でしか触らない (gms 直接依存を持たない)
+- Manifest の Play Games エントリ (gms meta-data + `PlayGamesAdminActivity`) は `PLAYGAMES:BEGIN`/`PLAYGAMES:END` で囲み、無効時は build.gradle が strip する
+- gms 依存 (`play-services-games-v2` 等) は `app/build.gradle` の `if (playGamesEnabled)` 内
+- `games_app_id` (strings.xml / resOverride) に Play Console の App ID を設定
+- **入口ドキュメント (仕組み・切り替え・Play Console 導線): `docs/android-play-games.md`**。Play Console 詳細手順=`app/src/main/cpp/playgames/SETUP.md` / TJS レシピ=`USAGE.md` / API=`manual.tjs`
 - 同種のプラグインを新規追加するときの汎用手順: `docs/android-jni-plugin.md`
 
 例: `androidconfig` プラグイン (機能設定画面 ↔ 吉里吉里本体コンフィグ連携)
