@@ -61,10 +61,18 @@ public class SettingsActivity extends AppCompatActivity implements KrkrzConfig.L
         swEnabled.setOnCheckedChangeListener((btn, checked) ->
                 VirtualPadPrefs.setEnabled(this, checked));
 
-        SwitchMaterial swTranslucent = findViewById(R.id.switch_vpad_translucent);
-        swTranslucent.setChecked(VirtualPadPrefs.isTranslucent(this));
-        swTranslucent.setOnCheckedChangeListener((btn, checked) ->
-                VirtualPadPrefs.setTranslucent(this, checked));
+        Slider slOpacity = findViewById(R.id.slider_vpad_opacity);
+        TextView tvOpacity = findViewById(R.id.text_vpad_opacity_label);
+        int opacityPct = VirtualPadPrefs.getOpacityPercent(this);
+        slOpacity.setValueFrom(VirtualPadPrefs.OPACITY_MIN);
+        slOpacity.setValueTo(VirtualPadPrefs.OPACITY_MAX);
+        slOpacity.setValue(opacityPct);
+        tvOpacity.setText(getString(R.string.settings_vpad_opacity, opacityPct));
+        slOpacity.addOnChangeListener((s, value, fromUser) -> {
+            int iv = Math.round(value);
+            tvOpacity.setText(getString(R.string.settings_vpad_opacity, iv));
+            if (fromUser) VirtualPadPrefs.setOpacityPercent(this, iv);
+        });
 
         constrainContentWidth();
 

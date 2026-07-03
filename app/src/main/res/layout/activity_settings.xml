@@ -38,16 +38,26 @@
             android:paddingEnd="8dp"
             android:paddingBottom="16dp" />
 
-        <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/switch_vpad_translucent"
+        <TextView
+            android:id="@+id/text_vpad_opacity_label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/settings_vpad_translucent" />
+            android:text="@string/settings_vpad_opacity"
+            android:textAppearance="?attr/textAppearanceBody2" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/slider_vpad_opacity"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="10"
+            android:valueTo="100"
+            android:stepSize="5"
+            android:value="55" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/settings_vpad_translucent_desc"
+            android:text="@string/settings_vpad_opacity_desc"
             android:textAppearance="?attr/textAppearanceCaption"
             android:paddingStart="8dp"
             android:paddingEnd="8dp" />

@@ -132,6 +132,10 @@ struct State {
 
     std::unordered_map<SDL_FingerID, int> finger_button;  // finger -> layout index
     int button_press_count[kVirtualButtonCount] = {0};
+    // touch から合成された mouse (SDL_TOUCH_MOUSEID) の現在ストリームがボタン上で
+    // 始まったか。DOWN で確定し UP まで保持することで、途中でボタン領域を跨いでも
+    // 「掴んだ側」を一貫させ、pointer の掴みっぱなし (UP を落として離せない) を防ぐ。
+    bool mouse_consumed = false;
 };
 
 State *g_state = nullptr;
@@ -173,6 +177,21 @@ int HitTest(float nx, float ny) {
     return -1;
 }
 
+// mouse イベント (touch から合成) 用。mouse 座標はウィンドウ論理座標なので、
+// ウィンドウサイズで正規化してから finger と同じ HitTest に載せる (レンダ出力
+// ピクセルと論理サイズが違う high-DPI でも整合する)。ウィンドウが取れなければ
+// レンダ出力ピクセルにフォールバック。
+int HitTestMouse(SDL_WindowID win_id, float mx, float my) {
+    int ww = 0, wh = 0;
+    if (SDL_Window *win = SDL_GetWindowFromID(win_id)) {
+        SDL_GetWindowSize(win, &ww, &wh);
+    }
+    if (ww > 0 && wh > 0) return HitTest(mx / (float)ww, my / (float)wh);
+    int W = g_window_w.load(), H = g_window_h.load();
+    if (W > 0 && H > 0) return HitTest(mx / (float)W, my / (float)H);
+    return -1;
+}
+
 // ============================================================================
 // ボタン入力管理
 // ============================================================================
@@ -202,9 +221,13 @@ void ReleaseButton(int btn_index) {
 // ============================================================================
 // 観測だけでは不十分 (engine が同じ touch を Layer.onMouseDown 等に届けてしまう)
 // ため、SDL_SetEventFilter で「捨てる」ことができる側に乗せる。enabled 時は
-// 画面上の全 touch 系イベントを drop し、ヒットしたボタンだけ仮想ジョイスティック
-// に反映する。SDL は touch を mouse としても合成発火するので
-// (SDL_HINT_TOUCH_MOUSE_EVENTS=1)、SDL_TOUCH_MOUSEID の mouse も同様に drop。
+// 「ボタンの上に当たった touch だけ」を drop して仮想ジョイスティックに反映し、
+// ボタン外に当たった touch は drop せずそのまま engine (下のレイヤ) に流す。
+// SDL は touch を mouse としても合成発火するので (SDL_HINT_TOUCH_MOUSE_EVENTS=1)、
+// SDL_TOUCH_MOUSEID の mouse も同じ判定で drop / passthrough する。
+// finger は fingerID で個別追跡できるが、合成 mouse は fingerID を持たない。SDL の
+// touch→mouse 合成は同時に 1 ポインタしか扱わないので、mouse は 1 本の
+// mouse_consumed フラグ (DOWN で確定・UP まで保持) で掴み側を一貫させる。
 
 SDL_EventFilter g_prev_filter = nullptr;
 void           *g_prev_filter_ud = nullptr;
@@ -215,10 +238,18 @@ bool SDLCALL EventFilter(void *ud, SDL_Event *event) {
             case SDL_EVENT_FINGER_DOWN: {
                 int layout_idx = HitTest(event->tfinger.x, event->tfinger.y);
                 if (layout_idx >= 0) {
+                    // ボタン上: 掴んで drop (engine には渡さない)
                     g_state->finger_button[event->tfinger.fingerID] = layout_idx;
                     PressButton(kLayout[layout_idx].button_index);
+                    return false;
                 }
-                return false;
+                // ボタン外: 下のレイヤへ流す
+                break;
+            }
+            case SDL_EVENT_FINGER_MOTION: {
+                // 掴んだ finger のみ drop。ボタン外の finger はドラッグごと流す。
+                if (g_state->finger_button.count(event->tfinger.fingerID)) return false;
+                break;
             }
             case SDL_EVENT_FINGER_UP:
             case SDL_EVENT_FINGER_CANCELED: {
@@ -226,17 +257,29 @@ bool SDLCALL EventFilter(void *ud, SDL_Event *event) {
                 if (it != g_state->finger_button.end()) {
                     ReleaseButton(kLayout[it->second].button_index);
                     g_state->finger_button.erase(it);
+                    return false;
                 }
-                return false;
+                break;
             }
-            case SDL_EVENT_FINGER_MOTION:
-                return false;
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                if (event->button.which == SDL_TOUCH_MOUSEID) {
+                    int idx = HitTestMouse(event->button.windowID,
+                                           event->button.x, event->button.y);
+                    g_state->mouse_consumed = (idx >= 0);
+                    if (g_state->mouse_consumed) return false;
+                }
+                break;
             case SDL_EVENT_MOUSE_BUTTON_UP:
-                if (event->button.which == SDL_TOUCH_MOUSEID) return false;
+                if (event->button.which == SDL_TOUCH_MOUSEID) {
+                    bool consumed = g_state->mouse_consumed;
+                    g_state->mouse_consumed = false;
+                    if (consumed) return false;
+                }
                 break;
             case SDL_EVENT_MOUSE_MOTION:
-                if (event->motion.which == SDL_TOUCH_MOUSEID) return false;
+                if (event->motion.which == SDL_TOUCH_MOUSEID && g_state->mouse_consumed) {
+                    return false;
+                }
                 break;
             default:
                 break;

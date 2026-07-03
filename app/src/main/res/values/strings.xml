@@ -16,8 +16,8 @@
     <string name="settings_section_virtualpad">Virtual gamepad</string>
     <string name="settings_vpad_enabled">Show virtual gamepad on screen</string>
     <string name="settings_vpad_enabled_desc">Overlay a D-pad and A/B buttons at the bottom of the screen and forward touches to KrkrZ as gamepad input.</string>
-    <string name="settings_vpad_translucent">Translucent overlay</string>
-    <string name="settings_vpad_translucent_desc">When OFF, the buttons are drawn opaque. Toggle this if the buttons are hard to see against the game screen behind them.</string>
+    <string name="settings_vpad_opacity">Pad opacity (%d%%)</string>
+    <string name="settings_vpad_opacity_desc">Adjust how opaque the on-screen buttons are drawn. Lower it if the buttons obscure the game screen behind them.</string>
 
     <!-- Settings - KrkrZ engine config (fetched from TJS via KrkrzConfig) -->
     <string name="settings_cfg_loading">Loading settings…</string>

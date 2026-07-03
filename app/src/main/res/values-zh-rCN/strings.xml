@@ -13,8 +13,8 @@
     <string name="settings_section_virtualpad">虚拟手柄</string>
     <string name="settings_vpad_enabled">在屏幕上显示虚拟手柄</string>
     <string name="settings_vpad_enabled_desc">在屏幕底部叠加显示方向键和 A/B 按钮，将触摸操作作为手柄输入传递给 KrkrZ。</string>
-    <string name="settings_vpad_translucent">半透明显示</string>
-    <string name="settings_vpad_translucent_desc">关闭后按钮将以不透明方式绘制。当按钮与背景游戏画面重叠不易辨识时可切换此项。</string>
+    <string name="settings_vpad_opacity">手柄不透明度 (%d%%)</string>
+    <string name="settings_vpad_opacity_desc">调整屏幕按钮的不透明度。当按钮遮挡背景游戏画面不易辨识时可调低。</string>
 
     <!-- Settings - 吉里吉里本体配置 (经 KrkrzConfig 从 TJS 获取) -->
     <string name="settings_cfg_loading">正在加载设置…</string>

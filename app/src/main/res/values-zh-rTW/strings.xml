@@ -13,8 +13,8 @@
     <string name="settings_section_virtualpad">虛擬搖桿</string>
     <string name="settings_vpad_enabled">在畫面上顯示虛擬搖桿</string>
     <string name="settings_vpad_enabled_desc">在畫面底部疊加顯示方向鍵與 A/B 按鈕，將觸控操作作為搖桿輸入傳送給 KrkrZ。</string>
-    <string name="settings_vpad_translucent">半透明顯示</string>
-    <string name="settings_vpad_translucent_desc">關閉後按鈕將以不透明方式繪製。當按鈕與背景遊戲畫面重疊不易辨識時可切換此項。</string>
+    <string name="settings_vpad_opacity">搖桿不透明度 (%d%%)</string>
+    <string name="settings_vpad_opacity_desc">調整畫面按鈕的不透明度。當按鈕遮擋背景遊戲畫面不易辨識時可調低。</string>
 
     <!-- Settings - 吉里吉里本體設定 (經 KrkrzConfig 從 TJS 取得) -->
     <string name="settings_cfg_loading">正在載入設定…</string>
