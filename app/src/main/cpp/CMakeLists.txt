@@ -95,8 +95,12 @@ option(KRKRZ_USE_LOGCORE "enable LogCore" OFF)
 option(KRKRZ_REPL "enable interactive TJS REPL" OFF)
 option(KRKRZ_BUILD_TESTS "build SIMD parity tests" OFF)
 # Elements (汎用ダイアログ機構 / cycfi::elements + thorvg + elements_modal)
-# Android では未使用なので OFF にして依存ごと除外する。
-option(KRKRZ_USE_ELEMENTS "embed Elements dialog UI" OFF)
+# Android でも有効化する (libkrkrz.so に thorvg/elements/harfbuzz を組み込む)。
+# 注意: 有効時は thorvg のサンプル exe (tvg-ft-text-sample 等) も add_executable
+# されるが、これらは Android NDK/bionic で通らない (basename 衝突) 上に不要なので、
+# app/build.gradle の externalNativeBuild で targets 'krkrz' に絞ってビルド対象から
+# 除外している (libkrkrz.so とその依存のみビルド)。
+option(KRKRZ_USE_ELEMENTS "embed Elements dialog UI" ON)
 
 # REPL (adb 経由の TJS 対話シェル) は Debug ビルドのみ有効化する。
 # - icline (行編集) は NDK 未対応。Android は console を使わず socket 経路のみ

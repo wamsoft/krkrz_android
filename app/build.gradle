@@ -121,6 +121,11 @@ android {
                           "-DANDROID_NDK_HOME=${android.ndkDirectory}",
                           "-DMYAPP_CMAKE_FILE=${layout.buildDirectory.file('generated/cmake/myapp.cmake').get().asFile.absolutePath.replace('\\', '/')}",
                           '-DKRKRZ_DRAW_STATS=ON'
+                // パッケージするのは libkrkrz.so だけ。これを指定しないと AGP が
+                // CMake の全ターゲット (thorvg のサンプル exe 等) までビルドしようとし、
+                // Android NDK で通らないサンプル (tvg-ft-text-sample の basename 衝突等)
+                // で失敗する。krkrz とその依存だけに絞る。
+                targets 'krkrz'
                 abiFilters 'arm64-v8a', 'x86_64'
             }
         }
