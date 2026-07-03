@@ -58,7 +58,7 @@
                 "type": "mirror",
                 "from": "${KRKRZ_BASE}/krkrz_dev/src/core/data",
                 "include": ["**/*"],
-                "exclude": ["**/*.bak", "**/*.psd", "startup.tjs"]
+                "exclude": ["**/*.bak", "**/*.psd"]
             }
         ]
     }
