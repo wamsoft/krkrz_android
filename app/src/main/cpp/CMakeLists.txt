@@ -116,6 +116,18 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     message(STATUS "[krkrz] REPL enabled (Debug): socket channel via KRKRZ_REPL_SOCKET")
 endif()
 
+# ----------------------------------------------------
+# 共通外部依存 (HarfBuzz / ThorVG 共通設定)
+#
+# src/core の glyphware (統一フォントエンジン) と elements/thorvg が各自
+# harfbuzz を要求するため、umbrella (krkrz_dev/CMakeLists.txt) や krkrz_nx と
+# 同じく、ここで CommonExternals.cmake を include して harfbuzz を先に
+# target 化しておく (各サブは if(NOT TARGET harfbuzz) ガードで自前ビルドを
+# スキップし、ABI を揃える)。include するだけで krkrz_setup_harfbuzz() まで
+# 実行される。TVP_PLUGINS を見る処理があるのでプラグイン定義より後に置くこと。
+# ----------------------------------------------------
+include(${KRKRZ_BASE}/krkrz_dev/cmake/CommonExternals.cmake)
+
 add_subdirectory(${KRKRZ_DIR} ${CMAKE_CURRENT_BINARY_DIR}/krkrz)
 
 # ----------------------------------------------------
