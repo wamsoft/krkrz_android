@@ -125,6 +125,9 @@ std::atomic<int>   g_preset{0};
 // HitTest で normalize → pixel 変換するために最新の描画サイズをキャッシュ。
 std::atomic<int>   g_window_w{0};
 std::atomic<int>   g_window_h{0};
+// Safe Area (ノッチ / パンチホール / ホームインジケータを避ける余白) を描画ピクセル
+// 単位で持つ。描画時に更新し、HitTest も同じ値で行う。
+std::atomic<float> g_inset_l{0}, g_inset_t{0}, g_inset_r{0}, g_inset_b{0};
 
 struct State {
     SDL_Joystick    *joystick = nullptr;
@@ -154,9 +157,30 @@ PixelRect ComputeRect(const ButtonDef &b, int w, int h) {
     PixelRect r;
     r.hw = b.sx * u;
     r.hh = b.sy * u;
-    r.cx = (b.ah == ANCH_L) ? b.ox * u : (float)w - b.ox * u;
-    r.cy = (b.av == ANCH_T) ? b.oy * u : (float)h - b.oy * u;
+    r.cx = (b.ah == ANCH_L) ? g_inset_l.load() + b.ox * u : (float)w - g_inset_r.load() - b.ox * u;
+    r.cy = (b.av == ANCH_T) ? g_inset_t.load() + b.oy * u : (float)h - g_inset_b.load() - b.oy * u;
     return r;
+}
+
+// ウィンドウの Safe Area を描画ピクセル (w x h) 単位の上下左右余白に換算して保持する。
+// Safe Area はウィンドウ座標なので、描画サイズとの比で換算する (high-DPI 対応)。
+void UpdateSafeArea(SDL_Window *win, int w, int h) {
+    float l = 0, t = 0, r = 0, b = 0;
+    int ww = 0, wh = 0;
+    SDL_Rect safe;
+    if (win && SDL_GetWindowSize(win, &ww, &wh) && ww > 0 && wh > 0 &&
+        SDL_GetWindowSafeArea(win, &safe)) {
+        float sx = (float)w / (float)ww;
+        float sy = (float)h / (float)wh;
+        l = (float)safe.x * sx;
+        t = (float)safe.y * sy;
+        r = (float)(ww - safe.x - safe.w) * sx;
+        b = (float)(wh - safe.y - safe.h) * sy;
+    }
+    g_inset_l.store(l > 0 ? l : 0);
+    g_inset_t.store(t > 0 ? t : 0);
+    g_inset_r.store(r > 0 ? r : 0);
+    g_inset_b.store(b > 0 ? b : 0);
 }
 
 bool PointInRect(const PixelRect &r, float px, float py) {
@@ -493,6 +517,7 @@ void RenderSDL(SDL_Renderer *renderer, void *ud) {
     if (w <= 0 || h <= 0) return;
     g_window_w.store(w);
     g_window_h.store(h);
+    UpdateSafeArea(SDL_GetRenderWindow(renderer), w, h);
 
     uint8_t alpha_scale = (uint8_t)(g_opacity.load() * 255.0f);
 
@@ -635,6 +660,7 @@ void RenderGL(void *ud) {
     if (w <= 0 || h <= 0) return;
     g_window_w.store(w);
     g_window_h.store(h);
+    UpdateSafeArea(SDL_GL_GetCurrentWindow(), w, h);
 
     uint8_t alpha_scale = (uint8_t)(g_opacity.load() * 255.0f);
 

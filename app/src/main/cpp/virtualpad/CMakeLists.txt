@@ -6,9 +6,10 @@
 set(TPSTUB_DIR ${KRKRZ_BASE}/krkrz_dev/src/plugins/tp_stub CACHE PATH "Path to tp_stub directory")
 include(${TPSTUB_DIR}/krkrz.cmake)
 
-# 非 Android ターゲットでも描画 + 仮想ジョイスティック自体は動かせる構造だが、
-# JniBridge.cpp が JNI ヘッダ依存なので Android 限定でビルドする (将来 iOS で
-# 同等プラグインを作るときは JNI 部分を外して同じ VirtualPad.* を使う想定)。
+# VirtualPad.cpp / VirtualPad.h / Main.cpp は krkrz_ios の plugins/virtualpad/ と
+# 同一内容で管理する (仮想パッドは Android / iOS だけの機能なので krkrz_dev には
+# 置かない)。どちらかを直したらもう一方へ写すこと。JniBridge.cpp は Android 専用。
+# JniBridge.cpp が JNI ヘッダ依存なので Android 限定でビルドする。
 if(NOT ANDROID)
     message(STATUS "virtualpad plugin: skipped (non-Android target)")
     return()
