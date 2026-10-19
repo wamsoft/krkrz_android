@@ -6,7 +6,7 @@ Android の「機能設定」画面に、`コンフィグ項目.txt` のシス�
 
 - 契約 (呼び出すグローバル関数とキー一覧): [`manual.tjs`](manual.tjs)
 - 参考実装 (雛形): [`sample_config.tjs`](sample_config.tjs)
-- 本書: 案件側で「実際に動かす」ための手順
+- 本書: タイトル側で「実際に動かす」ための手順
 
 ---
 
@@ -37,11 +37,11 @@ Android の「機能設定」画面に、`コンフィグ項目.txt` のシス�
 
 ---
 
-## 2. 案件側でやること (最短手順)
+## 2. タイトル側でやること (最短手順)
 
 ### Step 1. 参考実装を取り込む
 
-`sample_config.tjs` の内容を、案件の起動スクリプト (`startup.tjs` など、System.* が使える
+`sample_config.tjs` の内容を、ゲームの起動スクリプト (`startup.tjs` など、System.* が使える
 タイミング) から `Scripts.execStorage("...")` で読むか、内容をコピーして組み込む。
 これだけで設定画面は「動く」(値はインメモリ辞書に保持されるだけ)。
 
@@ -50,9 +50,9 @@ Android の「機能設定」画面に、`コンフィグ項目.txt` のシス�
 Scripts.execStorage("androidconfig_impl.tjs");   // sample_config.tjs をリネームして配置
 ```
 
-### Step 2. 4 つのグローバル関数を案件の設定変数へ配線する
+### Step 2. 4 つのグローバル関数をゲームの設定変数へ配線する
 
-`sample_config.tjs` の中の `// → 配線例` コメント箇所を、案件で実際に設定を保持している
+`sample_config.tjs` の中の `// → 配線例` コメント箇所を、ゲームで実際に設定を保持している
 変数・オブジェクトへの読み書きに差し替える。配線先の例:
 
 | 役割              | 配線先の例 (KAG)                       | 配線先の例 (自前システム)         |
@@ -62,17 +62,17 @@ Scripts.execStorage("androidconfig_impl.tjs");   // sample_config.tjs をリネ�
 | スキップモード    | `kag.skipMode` / 既読管理フラグ        | 同上                              |
 | 画面/システム効果 | エフェクト有効フラグ                   | 同上                              |
 | 音量 (master 等)  | `WaveSoundBuffer.GlobalVolume` (0-100000) | サウンドマネージャのチャンネル音量 |
-| 言語              | 案件の言語切替変数                     | 同上                              |
+| 言語              | ゲームの言語切替変数                     | 同上                              |
 
 音量は **0-100** で受け渡しする。`WaveSoundBuffer.GlobalVolume` は **0-100000** なので
 `value * 1000` のようにスケールする (`sample_config.tjs` にコメントあり)。
 
 ### Step 3. 設定の永続化
 
-`KrkrzAndroidSetConfig` / `KrkrzAndroidSetVolume` が呼ばれた後、案件のセーブ機構
+`KrkrzAndroidSetConfig` / `KrkrzAndroidSetVolume` が呼ばれた後、ゲームのセーブ機構
 (System の保存領域 / システムセーブデータ等) に保存して、次回起動時に
 `KrkrzAndroidGetConfig` がその値を返すようにする。`sample_config.tjs` はインメモリ
-保持のみなので、ここは案件側で追加する。
+保持のみなので、ここはタイトル側で追加する。
 
 ### Step 4. キャラ別ボイス (任意)
 
@@ -159,11 +159,11 @@ bool は整数 0/1。
 | 症状 | 原因 / 対処 |
 | ---- | ----------- |
 | 「設定取得関数がありません」と出る | `KrkrzAndroidGetConfig` がグローバルに無い。起動スクリプトで `sample_config.tjs` 相当を読めているか確認 |
-| セクションは出るが値が初期値のまま | `GetConfig` が案件の実値を返していない (Step 2 未配線) |
+| セクションは出るが値が初期値のまま | `GetConfig` がゲームの実値を返していない (Step 2 未配線) |
 | 音量を動かしても変わらない | `KrkrzAndroidSetVolume` 内の配線が未実装 (`// → 配線例` を埋める) |
 | 再起動すると設定が戻る | 永続化が無い (Step 3) |
 | キャラ別ボイスが出ない | `charVoiceNames` が空。改行区切りで名前を入れる |
-| ビルドで `androidconfig` が組み込まれない | `app-config.json` の `cmake.plugins` / `cmake.staticPlugins` に `"androidconfig"` があるか。案件切替後は `make clean-cmake` |
+| ビルドで `androidconfig` が組み込まれない | `app-config.json` の `cmake.plugins` / `cmake.staticPlugins` に `"androidconfig"` があるか。タイトル切替後は `make clean-cmake` |
 
 ---
 

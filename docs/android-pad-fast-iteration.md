@@ -1,6 +1,6 @@
 # PAD 軽量イテレーション (`make pad-fast`) — 仕組みと処理構造
 
-`make pad-fast` の設計メモ。**PAD 構成の案件でコード (Java/native/TJS) だけ直すときに、
+`make pad-fast` の設計メモ。**PAD 構成のタイトルでコード (Java/native/TJS) だけ直すときに、
 数 GB のパックを毎回端末へ再 push せず、変わったものだけ反映する**ための経路。
 使い方の要約は [android-play-asset-delivery.md](android-play-asset-delivery.md#軽量イテレーション-make-pad-fast--コードだけ直すとき) を参照。
 ここでは「なぜ動くのか」「何をどう処理しているか」を残す。
@@ -10,7 +10,7 @@
 ## 1. 背景 — なぜ `make pad-install` だと重いか
 
 `make pad-install` (= `bundletool build-apks --local-testing` → `install-apks`) は、
-**毎回すべての asset pack (案件によっては数 GB) を端末へ push** する。コードを 1 行直すたびに
+**毎回すべての asset pack (タイトルによっては数 GB) を端末へ push** する。コードを 1 行直すたびに
 これをやると数分かかる。一方、素の `make run` (`assembleDebug` + `adb install`) は速いが、
 PAD 構成では **APK にパックデータが入らず、local-testing の配線も無い**ので、
 起動時に PAD 解決が失敗してゲームデータが見つからない (→ [android-play-asset-delivery.md] 参照)。

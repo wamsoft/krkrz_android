@@ -1,10 +1,10 @@
 # Android Play Asset Delivery (PAD) 対応
 
-大容量の案件データ (xp3 アーカイブ・動画) を **Google Play Asset Delivery** で配信するための仕組みと手順。
+大容量のゲームデータ (xp3 アーカイブ・動画) を **Google Play Asset Delivery** で配信するための仕組みと手順。
 
 ## コマンド早見表
 
-いずれも案件は `PROJECT_DIR` で指定。`BUILD_TYPE` (Makefile) / `VARIANT` (スクリプト) で Debug/Release を切替 (pad-install/pad-package は既定 Debug、pad-aab は Release)。
+いずれもプロジェクトは `PROJECT_DIR` で指定。`BUILD_TYPE` (Makefile) / `VARIANT` (スクリプト) で Debug/Release を切替 (pad-install/pad-package は既定 Debug、pad-aab は Release)。
 
 | 目的 | コマンド |
 |---|---|
@@ -14,7 +14,7 @@
 | 配布用ポータブルインストーラを作る (配布先は Java + adb だけ) | `make pad-package` ( = `scripts/pad-package-installer.sh` ) |
 
 ```bash
-# 例 (案件フォルダを指定して実行)
+# 例 (プロジェクトフォルダを指定して実行)
 PROJECT_DIR=d:/work/game/xxx make pad-install     # 実機で動作確認
 PROJECT_DIR=d:/work/game/xxx make pad-aab         # Play 用 AAB
 PROJECT_DIR=d:/work/game/xxx make pad-package     # 配布用一式
@@ -22,7 +22,7 @@ PROJECT_DIR=d:/work/game/xxx make pad-package     # 配布用一式
 
 ## なぜ必要か
 
-- 案件データは数 GB になりうる (xp3 の合計が数 GB規模)。base APK / install-time の上限を超え、**そのままでは Play Store で配信できない**。
+- ゲームのデータは数 GB になりうる (xp3 の合計が数 GB規模)。base APK / install-time の上限を超え、**そのままでは Play Store で配信できない**。
 - PAD の **fast-follow / on-demand** パックは、端末の内部ストレージに **展開済みの実ファイル**として置かれ、`AssetPackManager.getPackLocation(name).assetsPath()` で絶対パスが取れる。
 - KrkrZ エンジンは既に「絶対パスのデータルート」(`setAssetCacheDir`) を受け取ると、そこを filesystem 直読み (mmap/seek 安い) する。**このパスを PAD の展開先に向けるだけ**で、native もデータコピーも不要で高速に読める。
 - 参考: 従来は「全部 assets 同梱 → 起動時 `<filesDir>/assets/` へコピー」していた ([android-jni-plugin.md] とは別系統の Bootstrap 機構)。PAD ではこのコピーが不要になる。
@@ -166,7 +166,7 @@ PROJECT_DIR=d:/work/game/xxx ./scripts/pad-build-aab.sh
 
 - 生成された **1 つの .aab** を Play Console にアップロードするだけ。asset pack は AAB に内包され、Play が配信タイプに従って自動配信する。
 - **Play App Signing 有効が必須** (PAD の本番 fetch に必要)。
-- 事前準備 (アイコン・ストア掲載情報・プライバシーポリシー等) は案件側の「Androidリリース準備項目.txt」を参照。
+- 事前準備 (アイコン・ストア掲載情報・プライバシーポリシー等) はタイトル側の「Androidリリース準備項目.txt」を参照。
 
 ## リリースビルドの注意 (署名 / メモリ / シンボル)
 

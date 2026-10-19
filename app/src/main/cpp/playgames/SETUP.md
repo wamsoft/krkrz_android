@@ -287,5 +287,5 @@ JNI ブリッジ C++ をビルド時自動生成する。
 Manifest の Play Games エントリ・drawer メニュー項目を自動的に全部落とす
 (`app/build.gradle` / `AndroidManifest.xml` / Java を手で編集する必要は無い)。
 
-案件を切り替えたら `make clean-cmake` を推奨。仕組みの詳細は
+プロジェクトを切り替えたら `make clean-cmake` を推奨。仕組みの詳細は
 [`docs/android-play-games.md`](../../../../../docs/android-play-games.md) を参照。

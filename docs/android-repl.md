@@ -24,11 +24,11 @@ TJS 式を投げて結果を受け取れる。デバッグ・状態観測・自�
      `tTVPReplSocketChannel::ShouldStart()` でこの env (または CLI `-replsocket=<name>`)
      を見てチャネルを起動する。
 
-### socket 名は案件ごとに一意 (パッケージ名由来)
+### socket 名はタイトルごとに一意 (パッケージ名由来)
 
 socket 名は **`<applicationId>.repl`** (例: `jp.example.mygame.repl`) を自動採用する。
 abstract socket 名はシステム全体で共有されるため、複数の krkrz アプリを入れても
-衝突しないようパッケージ名から導いている。**案件側で手を入れる必要は無い** (app-config.json
+衝突しないようパッケージ名から導いている。**タイトル側で手を入れる必要は無い** (app-config.json
 の `applicationId` を変えれば socket 名も自動で追従する)。`make repl` も同じ規則で forward する。
 
 ## 使い方
@@ -123,7 +123,7 @@ engine 側 dot コマンド (nc でも使える。socket チャネルが解釈):
   Agent は Elements 依存で、Android は `KRKRZ_USE_ELEMENTS=OFF` のため。基本の TJS 式
   評価・グローバル/プラグイン API 参照は使える。
 - 同時接続は 1 クライアント。切断すると次の接続を受け付ける。
-- socket 名は `<applicationId>.repl` 固定規則で自動導出 (案件で意識不要)。`make repl` は
+- socket 名は `<applicationId>.repl` 固定規則で自動導出 (タイトル側では意識不要)。`make repl` は
   `app-config.json` の `applicationId` から同じ名前を組み立てて forward する。
 
 ## 関連コード

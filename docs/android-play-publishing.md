@@ -104,7 +104,7 @@ make play-status     # 各トラックの現状が表示されれば認証OK (�
 ### テスト → 本番の典型フロー
 
 ```bash
-# 1. AAB を作る (PAD 案件)
+# 1. AAB を作る (PAD 構成)
 make pad-aab
 
 # 2. リリースノートを用意して internal へ
@@ -133,7 +133,7 @@ make play-rollout HALT=1
 
 ## 3. リリースノート運用
 
-versionCode 別・言語別のテキストファイルを **案件フォルダで管理**する:
+versionCode 別・言語別のテキストファイルを **プロジェクトフォルダで管理**する:
 
 ```
 ${PROJECT_DIR}/dist/playstore/whatsnew/<versionCode>/
@@ -144,7 +144,7 @@ ${PROJECT_DIR}/dist/playstore/whatsnew/<versionCode>/
     default.txt    # 未記入言語のフォールバック (任意)
 ```
 
-- **言語リストはアプリの res から自動導出** (`app/src/main/res` と案件の `resOverride` の
+- **言語リストはアプリの res から自動導出** (`app/src/main/res` とタイトルの `resOverride` の
   `values-*` を Play 言語コードへマップ)。`values`→`en-US` / `values-ja`→`ja-JP` /
   `values-zh-rCN`→`zh-CN` / `values-zh-rTW`→`zh-TW`。専用の設定キーは持たない (単一ソース)。
 - `make play-notes-new [VERSION=N]` で **全言語ぶんの空ファイルを一括生成** (VERSION 省略時は

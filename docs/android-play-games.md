@@ -4,7 +4,7 @@ TJS から `PlayGames` クラスで Google Play Games (サインイン / 実績 
 使うための連携。**Play Games 対応をやるときはまずこのドキュメントを読む** — ここが入口で、
 Play Console の具体手順・TJS レシピ・API リファレンスは末尾のリンクにまとめてある。
 
-サンプル案件 (リポジトリ同梱の `app-config.json`) は既定で **有効**。
+サンプル (リポジトリ同梱の `app-config.json`) は既定で **有効**。
 
 ---
 
@@ -38,7 +38,7 @@ Play Console の具体手順・TJS レシピ・API リファレンスは末尾�
   を取り除いた manifest を生成して使う。
 - **drawer メニューの「Google Play Games」項目を実行時に非表示** (`PlayGamesHook.isEnabled()` が false)。
 
-結果として、無効案件の APK/AAB には **gms コードも Play Games 関連の Manifest エントリも一切残らない**。
+結果として、無効にしたタイトルの APK/AAB には **gms コードも Play Games 関連の Manifest エントリも一切残らない**。
 
 ---
 
