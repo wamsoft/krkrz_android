@@ -136,7 +136,7 @@ krkrz_plugin(<name>
 
 playgames プラグインの `JniBridge.cpp/h` をそのままコピーして
 名前空間 `playgames` を `<name>` に書き換える。
-共通化したい場合は将来 [Phase 2 抽象化](#phase-2-将来-javatjs-汎用ブリッジ化) で対応。
+共通化したい場合は将来 [Phase 2 抽象化](#7-phase-2-将来-javatjs-汎用ブリッジ化) で対応。
 
 JniBridge には以下が含まれる (=自分で書く必要なし):
 - `ScopedEnv` (JNIEnv 取得 / AttachCurrentThread)
