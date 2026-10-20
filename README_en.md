@@ -1,4 +1,4 @@
-<!-- source_hash: f897d7d5f75a -->
+<!-- source_hash: e0e630298e35 -->
 # krkrz_android — Kirikiri Z for Android
 
 [日本語](README.md) | English
@@ -142,6 +142,14 @@ The documentation for Kirikiri Z itself is on the [documentation site](https://w
 
 ## License
 
-What is referenced or fetched at build time (the Kirikiri Z engine and plugins, SDL3, and the
-dependency libraries fetched through vcpkg) follows its own license. Include the license notices
-required in your distribution on the title side, according to the engine, plugins and libraries you use.
+This repository (build scripts, the Android sources (Java / C++), tools and templates) is under the [MIT License](LICENSE).
+
+The following, referenced or fetched at build time, follow their own licenses; the license of this
+repository does not extend to them.
+
+- The Kirikiri Z engine and plugins (each submodule under krkrz_dev)
+- SDL3 (zlib License) and the dependency libraries fetched through vcpkg
+- The Android SDK / NDK and the libraries fetched through Gradle (such as the Google Play libraries)
+
+Include the license notices required in your distribution on the title side, according to the engine,
+plugins and libraries you use.
