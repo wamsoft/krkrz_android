@@ -6,9 +6,10 @@
 [読み上げ (スクリーンリーダー)](https://github.com/wamsoft/krkrz_dev/blob/develop/doc/guide/Accessibility.md)
 を参照。ここは Android でのビルドと仕組みだけを書く。
 
-## 有効にする
+## 有効 / 無効
 
-`app-config.json` の `cmake.plugins` と `cmake.staticPlugins` に `"a11y"` を入れる。
+既定で有効。同梱の `app-config.json` は `cmake.plugins` と `cmake.staticPlugins` に
+`"a11y"` を入れてある。自分の設定ファイルを使う場合も同じように入れる。
 
 ```json
 "cmake": {
@@ -18,8 +19,10 @@
 ```
 
 `app/build.gradle` がこれを見て、エンジンを `-DKRKRZ_USE_A11Y=ON` でビルドする
-(Play Games と同じく、プラグインの有無が唯一のスイッチ)。外すと OS へは出なくなるが、
-スクリプトの API (`announce` など) はそのまま使える。
+(Play Games と同じく、プラグインの有無が唯一のスイッチ)。**無効にするには両方のリストから
+`"a11y"` を外す** (`-DKRKRZ_USE_A11Y=OFF` になる)。外しても OS へ出なくなるだけで、
+スクリプトの API (`announce` など) はそのまま使える。サイズの増分は `libkrkrz.so` が ABI ごとに
+約 0.6〜0.7 MB (arm64-v8a で +4.3%)。
 
 ## 仕組み
 

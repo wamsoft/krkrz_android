@@ -105,7 +105,7 @@ on the documentation site.
 | Sign with the release key | [docs/android-signing.md](docs/android-signing.md) |
 | Deliver large data through Play Asset Delivery (`padPacks`) | [docs/android-play-asset-delivery.md](docs/android-play-asset-delivery.md) |
 | Use Google Play Games (sign-in, achievements, cloud save) | [docs/android-play-games.md](docs/android-play-games.md) |
-| Expose dialogs etc. to the TalkBack screen reader (the `"a11y"` plugin) | [docs/android-accessibility.md](docs/android-accessibility.md) (Japanese) |
+| Screen reader (TalkBack) support (the `"a11y"` plugin, on by default) | [docs/android-accessibility.md](docs/android-accessibility.md) (Japanese) |
 | Upload and publish to the Play Console from `make` | [docs/android-play-publishing.md](docs/android-play-publishing.md) |
 
 Play Games is turned on or off just by including `"playgames"` in `cmake.plugins` of

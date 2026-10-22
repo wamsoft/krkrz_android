@@ -16,13 +16,15 @@
             "playgames",
             "virtualpad",
             "license",
-            "androidconfig"
+            "androidconfig",
+            "a11y"
         ],
         "staticPlugins": [
             "playgames",
             "virtualpad",
             "license",
-            "androidconfig"
+            "androidconfig",
+            "a11y"
         ]
     },
     "assetPack": {
