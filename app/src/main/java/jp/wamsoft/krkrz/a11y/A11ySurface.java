@@ -28,9 +28,11 @@ public class A11ySurface extends SDLSurface {
             AccessibilityNodeInfo n = A11yBridge.nativeCreateNodeInfo(A11ySurface.this, virtualViewId);
             // AccessKit は ACTION_CLICK を足すが setClickable はしない。押せる項目として
             // 扱わせる (TalkBack の「ダブルタップで有効化」の案内など) ために立てておく
-            if (n != null && n.getActionList().contains(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK)) {
+            if (n == null) return null;
+            if (n.getActionList().contains(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK)) {
                 n.setClickable(true);
             }
+            adjustForNavigation(n, virtualViewId);
             return n;
         }
 
@@ -58,6 +60,44 @@ public class A11ySurface extends SDLSurface {
         super(context);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
         A11yBridge.setHost(this);
+    }
+
+    private final android.graphics.Rect mTmpRect = new android.graphics.Rect();
+    private final int[] mTmpLoc = new int[2];
+
+    /**
+     * TalkBack のスワイプ巡回から、画面上に見えないノードを外す。
+     * - 根 (この描画面): 名前があると TalkBack は根そのものを巡回の 1 項目にする (一周の
+     *   折り返しで「読み上げデモ」に止まる)。名前は画面の題 (pane title) に移し、巡回では
+     *   止まらせない。位置が無いと枠の計算が狂うので、描画面そのものの範囲を与える。
+     * - 読み上げ用の live region (エンジンが 1 ピクセルだけ与えている): 変化は
+     *   読ませたいが、巡回では止まらせない (重要でない扱い)。
+     * - それ以外で大きさの無いノード (位置を持たないラベル等): 見えない扱いにする。
+     */
+    private void adjustForNavigation(AccessibilityNodeInfo n, int virtualViewId) {
+        n.getBoundsInScreen(mTmpRect);
+        if (virtualViewId == AccessibilityNodeProvider.HOST_VIEW_ID) {
+            CharSequence title = n.getContentDescription();
+            if (title != null && title.length() > 0) {
+                n.setPaneTitle(title);
+                n.setContentDescription(null);
+            }
+            n.setScreenReaderFocusable(false);
+            if (mTmpRect.isEmpty()) {
+                getLocationOnScreen(mTmpLoc);
+                n.setBoundsInScreen(new android.graphics.Rect(mTmpLoc[0], mTmpLoc[1],
+                        mTmpLoc[0] + getWidth(), mTmpLoc[1] + getHeight()));
+            }
+            return;
+        }
+        if (n.getLiveRegion() != View.ACCESSIBILITY_LIVE_REGION_NONE
+                && mTmpRect.width() <= 1 && mTmpRect.height() <= 1) {
+            n.setImportantForAccessibility(false);
+            n.setFocusable(false);
+            n.setScreenReaderFocusable(false);
+        } else if (mTmpRect.isEmpty()) {
+            n.setVisibleToUser(false);
+        }
     }
 
     int accessibilityFocusedId() {
