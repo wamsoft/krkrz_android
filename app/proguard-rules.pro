@@ -19,3 +19,5 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# 読み上げ (TalkBack): native から呼ばれる / native メソッドを持つ
+-keep class jp.wamsoft.krkrz.a11y.** { *; }

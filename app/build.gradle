@@ -72,6 +72,12 @@ def padPackNames = padPacksConfig.collect { it.name as String }
 def playGamesEnabled = ((appConfig.cmake?.plugins ?: []) as List).contains('playgames')
 logger.lifecycle("[playGames] ${playGamesEnabled ? 'enabled' : 'disabled'} (from app-config.json cmake.plugins)")
 
+// --- 読み上げ (TalkBack): cmake.plugins に "a11y" があればエンジンの KRKRZ_USE_A11Y も ON ---
+// (JNI の受け口 app/src/main/cpp/a11y + Java の jp.wamsoft.krkrz.a11y は常にコンパイルされ、
+//  native が無いビルドでは実行時に無効になる。docs/android-accessibility.md)
+def a11yEnabled = ((appConfig.cmake?.plugins ?: []) as List).contains('a11y')
+logger.lifecycle("[a11y] ${a11yEnabled ? 'enabled' : 'disabled'} (from app-config.json cmake.plugins)")
+
 // --- apk: rename outputs (<baseName>-<versionName>-<variant>.{apk,aab}) ---
 def apkConfig = appConfig.apk
 def apkBaseNameFull = null  // "<baseName>-<versionName>"
@@ -120,7 +126,8 @@ android {
                           "-DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=${android.ndkDirectory}/build/cmake/android.toolchain.cmake",
                           "-DANDROID_NDK_HOME=${android.ndkDirectory}",
                           "-DMYAPP_CMAKE_FILE=${layout.buildDirectory.file('generated/cmake/myapp.cmake').get().asFile.absolutePath.replace('\\', '/')}",
-                          '-DKRKRZ_DRAW_STATS=ON'
+                          '-DKRKRZ_DRAW_STATS=ON',
+                          "-DKRKRZ_USE_A11Y=${a11yEnabled ? 'ON' : 'OFF'}"
                 // パッケージするのは libkrkrz.so だけ。これを指定しないと AGP が
                 // CMake の全ターゲット (thorvg のサンプル exe 等) までビルドしようとし、
                 // Android NDK で通らないサンプル (tvg-ft-text-sample の basename 衝突等)

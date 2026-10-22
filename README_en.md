@@ -105,6 +105,7 @@ on the documentation site.
 | Sign with the release key | [docs/android-signing.md](docs/android-signing.md) |
 | Deliver large data through Play Asset Delivery (`padPacks`) | [docs/android-play-asset-delivery.md](docs/android-play-asset-delivery.md) |
 | Use Google Play Games (sign-in, achievements, cloud save) | [docs/android-play-games.md](docs/android-play-games.md) |
+| Expose dialogs etc. to the TalkBack screen reader (the `"a11y"` plugin) | [docs/android-accessibility.md](docs/android-accessibility.md) (Japanese) |
 | Upload and publish to the Play Console from `make` | [docs/android-play-publishing.md](docs/android-play-publishing.md) |
 
 Play Games is turned on or off just by including `"playgames"` in `cmake.plugins` of
@@ -133,6 +134,7 @@ The documents under `docs/` are in Japanese.
 | [docs/android-play-asset-delivery.md](docs/android-play-asset-delivery.md) | Play Asset Delivery (delivering large data) |
 | [docs/android-pad-fast-iteration.md](docs/android-pad-fast-iteration.md) | How `make pad-fast` works |
 | [docs/android-play-games.md](docs/android-play-games.md) | Google Play Games Services |
+| [docs/android-accessibility.md](docs/android-accessibility.md) | Screen reader (TalkBack) support (Japanese) |
 | [docs/android-play-publishing.md](docs/android-play-publishing.md) | Automating publishing to the Google Play Console |
 | [docs/android-jni-plugin.md](docs/android-jni-plugin.md) | Writing a JNI plugin |
 | [docs/android-repl.md](docs/android-repl.md) | REPL over adb |

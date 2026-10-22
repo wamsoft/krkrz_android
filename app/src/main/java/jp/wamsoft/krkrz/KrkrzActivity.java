@@ -18,6 +18,7 @@ import com.google.android.material.navigation.NavigationView;
 import org.libsdl.app.SDLActivity;
 import org.libsdl.app.SDLSurface;
 
+import jp.wamsoft.krkrz.a11y.A11yBridge;
 import jp.wamsoft.krkrz.ui.LicenseActivity;
 import jp.wamsoft.krkrz.ui.SettingsActivity;
 import jp.wamsoft.krkrz.virtualpad.VirtualPadPrefs;
@@ -82,6 +83,10 @@ public class KrkrzActivity extends SDLActivity {
         System.loadLibrary("SDL3");
         System.loadLibrary("krkrz");
 
+        // 読み上げ (TalkBack)。a11y プラグイン入りのビルドだけ有効になり、
+        // createSDLSurface が読み上げ対応の描画面を返す (super.onCreate の中で呼ばれる)。
+        A11yBridge.init(this);
+
         // BootstrapActivity が解決したデータルート (PAD の padroot か assets cache) を
         // Intent extra で受け取り、それを native に渡す。extra が無い場合 (BootstrapActivity
         // を経由しない直接起動など) は従来どおり <filesDir>/assets を試し、それも無ければ
@@ -113,7 +118,8 @@ public class KrkrzActivity extends SDLActivity {
 
     @Override
     protected SDLSurface createSDLSurface(Context context) {
-        SDLSurface surface = super.createSDLSurface(context);
+        SDLSurface surface = A11yBridge.createSurface(context);
+        if (surface == null) surface = super.createSDLSurface(context);
         configureSdlSurfaceZOrder(surface);
         return surface;
     }

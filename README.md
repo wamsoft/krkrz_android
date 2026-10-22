@@ -99,6 +99,7 @@ APK は `${PROJECT_DIR}/build/android/app/outputs/apk/<variant>/` に出ます�
 | リリース用の鍵で署名する | [docs/android-signing.md](docs/android-signing.md) |
 | 大きなデータを Play Asset Delivery で配信する (`padPacks`) | [docs/android-play-asset-delivery.md](docs/android-play-asset-delivery.md) |
 | Google Play Games (サインイン・実績・クラウドセーブ) を使う | [docs/android-play-games.md](docs/android-play-games.md) |
+| 読み上げ (TalkBack) にダイアログ等を出す (`"a11y"` プラグイン) | [docs/android-accessibility.md](docs/android-accessibility.md) |
 | Play Console へのアップロード・公開を `make` から行う | [docs/android-play-publishing.md](docs/android-play-publishing.md) |
 
 Play Games は `app-config.json` の `cmake.plugins` に `"playgames"` を入れるかどうかだけで有効 / 無効が
@@ -125,6 +126,7 @@ Play Games は `app-config.json` の `cmake.plugins` に `"playgames"` を入れ
 | [docs/android-play-asset-delivery.md](docs/android-play-asset-delivery.md) | Play Asset Delivery (大きなデータの配信) |
 | [docs/android-pad-fast-iteration.md](docs/android-pad-fast-iteration.md) | `make pad-fast` の仕組み |
 | [docs/android-play-games.md](docs/android-play-games.md) | Google Play Games Services |
+| [docs/android-accessibility.md](docs/android-accessibility.md) | 読み上げ (TalkBack) 対応 |
 | [docs/android-play-publishing.md](docs/android-play-publishing.md) | Google Play Console の公開の自動化 |
 | [docs/android-jni-plugin.md](docs/android-jni-plugin.md) | JNI プラグインの作り方 |
 | [docs/android-repl.md](docs/android-repl.md) | adb 経由の REPL |

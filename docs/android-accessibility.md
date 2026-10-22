@@ -1,0 +1,59 @@
+# 読み上げ (TalkBack) 対応
+
+吉里吉里Z の読み上げ対応 (Elements のダイアログ、`ElementsDialog.setGameA11y` /
+`a11yLayers` で載せたノード、`ElementsDialog.announce`) を Android の TalkBack へ出す。
+スクリプト側の使い方は吉里吉里Z の
+[読み上げ (スクリーンリーダー)](https://github.com/wamsoft/krkrz_dev/blob/develop/doc/guide/Accessibility.md)
+を参照。ここは Android でのビルドと仕組みだけを書く。
+
+## 有効にする
+
+`app-config.json` の `cmake.plugins` と `cmake.staticPlugins` に `"a11y"` を入れる。
+
+```json
+"cmake": {
+    "plugins":       [ ..., "a11y" ],
+    "staticPlugins": [ ..., "a11y" ]
+}
+```
+
+`app/build.gradle` がこれを見て、エンジンを `-DKRKRZ_USE_A11Y=ON` でビルドする
+(Play Games と同じく、プラグインの有無が唯一のスイッチ)。外すと OS へは出なくなるが、
+スクリプトの API (`announce` など) はそのまま使える。
+
+## 仕組み
+
+| 場所 | 内容 |
+|---|---|
+| `app/src/main/java/jp/wamsoft/krkrz/a11y/A11ySurface.java` | SDL の描画面 (`SDLSurface`) のサブクラス。`getAccessibilityNodeProvider()` と `onHoverEvent()` (TalkBack のなぞり操作) を native へ渡す。`KrkrzActivity.createSDLSurface()` が、読み上げ入りのビルドのときだけこれを返す |
+| `app/src/main/java/jp/wamsoft/krkrz/a11y/A11yBridge.java` | native メソッドの置き場。`AccessibilityManager` で TalkBack の on / off を native へ伝える。エンジン側の変化は `requestUpdate()` (native から呼ばれる) で UI スレッドへ回す |
+| `app/src/main/cpp/a11y/` | 静的プラグイン。JNI 関数をエンジンの `TVPA11yAndroid*` (krkrz_dev `src/core/sdl3/environ/A11yAndroid.cpp`) へ渡すだけ |
+
+- Android のアクセシビリティは UI スレッドで View に問い合わせる。エンジンは SDL のスレッドで
+  動くので、ツリーはエンジンが最後に送ったものを答え、TalkBack からの操作 (ダブルタップ、
+  スライダーの増減) はエンジンのスレッドへ積んで次のフレームで処理する。
+- プラグインを入れていないビルドでは native が無いので、`A11yBridge.init()` が false になり、
+  通常の `SDLSurface` のまま動く (Java は常にコンパイルされる)。
+- TalkBack が動いている間、画面へのタッチは TalkBack の操作になり、ゲームには直接届かない
+  (OS の仕様)。タッチで遊ぶ部分は `setGameA11y` / `a11yLayers` で操作できるようにしておく。
+
+## 確かめ方
+
+- `adb shell uiautomator dump /sdcard/ui.xml && adb pull /sdcard/ui.xml` で、
+  描画面の下に仮想ノード (ボタンの名前・矩形) が出ているかを見る。
+- TalkBack: 端末の設定から有効にする。adb からは
+  `adb shell settings put secure enabled_accessibility_services com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`
+  と `adb shell settings put secure accessibility_enabled 1` (戻すときは
+  `enabled_accessibility_services` を空にする)。
+- REPL (`make repl`、[android-repl.md](android-repl.md)) で `Agent.a11yTree()` を評価して、
+  エンジンが持っているツリーと突き合わせる (socket の REPL は `.a11y` などのドット
+  コマンドを受け付けないので、式で書く)。`ElementsDialog.a11yActive` は TalkBack が
+  最初にツリーを問い合わせた時点で真になる。
+
+## 既知の問題
+
+- TalkBack のフォーカス枠 (選んだ項目を囲む枠) が描かれない。フォーカスそのものは移り、
+  読み上げと、TalkBack からの操作 (ACTION_CLICK / スライダーの増減) は届く。
+- TalkBack を切ったときに `ElementsDialog.a11yActive` が偽へ戻るかは、実機で未確認。
+- 左端スワイプのサイドメニューは、TalkBack 中は 2 本指で左端からスワイプすると開く
+  (1 本指のスワイプは TalkBack の操作になる)。
