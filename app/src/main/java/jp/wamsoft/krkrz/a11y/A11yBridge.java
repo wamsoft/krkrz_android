@@ -57,22 +57,6 @@ public final class A11yBridge {
         return sAvailable ? new A11ySurface(context) : null;
     }
 
-    /**
-     * 描画面の上に TalkBack のフォーカス枠を描く View を重ねる (Activity.onCreate の
-     * super.onCreate 後、描画面が親に入ってから呼ぶ)。読み上げ対応の描画面でなければ何もしない。
-     */
-    public static void attachFocusOverlay(View surface) {
-        if (!(surface instanceof A11ySurface)) return;
-        android.view.ViewParent p = surface.getParent();
-        if (!(p instanceof android.view.ViewGroup)) return;
-        A11ySurface s = (A11ySurface) surface;
-        A11yFocusOverlay overlay = new A11yFocusOverlay(surface.getContext(), s);
-        ((android.view.ViewGroup) p).addView(overlay, new android.view.ViewGroup.LayoutParams(
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT));
-        s.setFocusOverlay(overlay);
-    }
-
     static void setHost(View host) {
         sHost = host;
     }

@@ -3,6 +3,7 @@ package jp.wamsoft.krkrz.a11y;
 import android.content.Context;
 import android.os.Bundle;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.MotionEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityNodeProvider;
@@ -63,13 +64,19 @@ public class A11ySurface extends SDLSurface {
         return mA11yFocused;
     }
 
-    /** 枠を描く View を付ける (描画面と同じ親の、描画面より手前に置く)。 */
-    void setFocusOverlay(View overlay) {
-        mFocusOverlay = overlay;
-    }
-
-    /** ツリーが変わった / フォーカスが動いたときに枠を描き直す。 */
+    /**
+     * ツリーが変わった / フォーカスが動いたときに枠を描き直す。枠の View は
+     * TalkBack が初めてフォーカスを置いたときに付ける (起動中に View を足すと
+     * 描画面のレイアウトが走り、SDL のウィンドウ生成とぶつかることがあるため。
+     * TalkBack を使わない人には付かない)。
+     */
     void refreshFocusOverlay() {
+        if (mFocusOverlay == null && mA11yFocused != NO_FOCUS
+                && getParent() instanceof ViewGroup) {
+            mFocusOverlay = new A11yFocusOverlay(getContext(), this);
+            ((ViewGroup) getParent()).addView(mFocusOverlay, new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
         if (mFocusOverlay != null) mFocusOverlay.invalidate();
     }
 

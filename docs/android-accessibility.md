@@ -27,7 +27,7 @@
 |---|---|
 | `app/src/main/java/jp/wamsoft/krkrz/a11y/A11ySurface.java` | SDL の描画面 (`SDLSurface`) のサブクラス。`getAccessibilityNodeProvider()` と `onHoverEvent()` (TalkBack のなぞり操作) を native へ渡す。`KrkrzActivity.createSDLSurface()` が、読み上げ入りのビルドのときだけこれを返す |
 | `app/src/main/java/jp/wamsoft/krkrz/a11y/A11yBridge.java` | native メソッドの置き場。`AccessibilityManager` で TalkBack の on / off を native へ伝える。エンジン側の変化は `requestUpdate()` (native から呼ばれる) で UI スレッドへ回す |
-| `app/src/main/java/jp/wamsoft/krkrz/a11y/A11yFocusOverlay.java` | TalkBack のフォーカス枠を描く透明な View。描画面 (SurfaceView) はウィンドウの背面にあり、その範囲はウィンドウ側では透明扱いなので、Android が描く枠は見えない。描画面の上に重ねて、TalkBack と同じ色・太さで枠を描く |
+| `app/src/main/java/jp/wamsoft/krkrz/a11y/A11yFocusOverlay.java` | TalkBack のフォーカス枠を描く透明な View。描画面 (SurfaceView) はウィンドウの背面にあり、その範囲はウィンドウ側では透明扱いなので、Android が描く枠は見えない。描画面の上に重ねて、TalkBack と同じ色・太さで枠を描く。TalkBack が初めてフォーカスを置いたときに付ける (起動中に View を足すと描画面のレイアウトが走り、SDL のウィンドウ生成とぶつかって固まる / GL の初期化が落ちることがあったため) |
 | `app/src/main/cpp/a11y/` | 静的プラグイン。JNI 関数をエンジンの `TVPA11yAndroid*` (krkrz_dev `src/core/sdl3/environ/A11yAndroid.cpp`) へ渡すだけ |
 
 - Android のアクセシビリティは UI スレッドで View に問い合わせる。エンジンは SDL のスレッドで
@@ -56,3 +56,5 @@
 - TalkBack を切ったときに `ElementsDialog.a11yActive` が偽へ戻るかは、実機で未確認。
 - 左端スワイプのサイドメニューは、TalkBack 中は 2 本指で左端からスワイプすると開く
   (1 本指のスワイプは TalkBack の操作になる)。
+- 画面が消えている間にアプリを起動すると、ウィンドウ生成と描画面の変化がぶつかって起動時に
+  固まることがある (SDL 側の起動タイミングの問題。読み上げとは別)。
