@@ -2,6 +2,7 @@ package jp.wamsoft.krkrz.a11y;
 
 import android.content.Context;
 import android.os.Bundle;
+import android.view.View;
 import android.view.MotionEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityNodeProvider;
@@ -16,6 +17,10 @@ import org.libsdl.app.SDLSurface;
  * AccessKit (エンジン側) が答える。
  */
 public class A11ySurface extends SDLSurface {
+    static final int NO_FOCUS = Integer.MIN_VALUE;
+    private int mA11yFocused = NO_FOCUS;   // TalkBack のフォーカスがある仮想ノード
+    private View mFocusOverlay;            // それを囲む枠を描く View (A11yFocusOverlay)
+
     private final AccessibilityNodeProvider mProvider = new AccessibilityNodeProvider() {
         @Override
         public AccessibilityNodeInfo createAccessibilityNodeInfo(int virtualViewId) {
@@ -35,7 +40,16 @@ public class A11ySurface extends SDLSurface {
 
         @Override
         public boolean performAction(int virtualViewId, int action, Bundle arguments) {
-            return A11yBridge.nativePerformAction(A11ySurface.this, virtualViewId, action, arguments);
+            boolean r = A11yBridge.nativePerformAction(A11ySurface.this, virtualViewId, action, arguments);
+            if (r && action == AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS) {
+                mA11yFocused = virtualViewId;
+                refreshFocusOverlay();
+            } else if (r && action == AccessibilityNodeInfo.ACTION_CLEAR_ACCESSIBILITY_FOCUS
+                    && mA11yFocused == virtualViewId) {
+                mA11yFocused = NO_FOCUS;
+                refreshFocusOverlay();
+            }
+            return r;
         }
     };
 
@@ -43,6 +57,20 @@ public class A11ySurface extends SDLSurface {
         super(context);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
         A11yBridge.setHost(this);
+    }
+
+    int accessibilityFocusedId() {
+        return mA11yFocused;
+    }
+
+    /** 枠を描く View を付ける (描画面と同じ親の、描画面より手前に置く)。 */
+    void setFocusOverlay(View overlay) {
+        mFocusOverlay = overlay;
+    }
+
+    /** ツリーが変わった / フォーカスが動いたときに枠を描き直す。 */
+    void refreshFocusOverlay() {
+        if (mFocusOverlay != null) mFocusOverlay.invalidate();
     }
 
     @Override

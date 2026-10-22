@@ -105,6 +105,8 @@ public class KrkrzActivity extends SDLActivity {
         super.onCreate(savedInstanceState);
 
         installSideMenuOverlay();
+        // 読み上げ: TalkBack のフォーカス枠は SurfaceView の上ではウィンドウが描けないので自前で重ねる
+        A11yBridge.attachFocusOverlay(mSurface);
 
         setAssetManager(getAssets());
         // Play Games 連携は PlayGamesHook 経由 (有効ビルドのみ実処理、無効ビルドは no-op)。
